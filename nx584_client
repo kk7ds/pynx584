@@ -1,0 +1,46 @@
+#!/usr/bin/env python
+
+import argparse
+import pprint
+
+from nx584 import client
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('command')
+    parser.add_argument('--stay', default=False, action='store_true')
+    parser.add_argument('--host', default='localhost:5000',
+                        help='Host and port (localhost:5000)')
+    args = parser.parse_args()
+    return args
+
+
+def do_list(clnt, args):
+    for zone in clnt.list_zones():
+        pprint.pprint(zone)
+
+
+def do_list_partitions(clnt, args):
+    for part in clnt.list_partitions():
+        pprint.pprint(part)
+
+
+def do_arm(clnt, args):
+    clnt.arm(stay=args.stay)
+
+
+def main():
+    args = parse_args()
+    url = 'http://%s:%s' % tuple(args.host.split(':', 1))
+    clnt = client.Client(url)
+    print args.command
+    if args.command == 'list':
+        do_list(clnt, args)
+    elif args.command == 'arm':
+        do_arm(clnt, args)
+    elif args.command == 'partitions':
+        do_list_partitions(clnt, args)
+
+
+main()

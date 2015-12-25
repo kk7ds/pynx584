@@ -1,0 +1,5 @@
+#!/usr/bin/python
+
+from nx584 import main
+
+main.main()
