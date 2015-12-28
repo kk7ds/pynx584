@@ -1,3 +1,4 @@
+import json
 import requests
 
 
@@ -20,9 +21,18 @@ class Client(object):
         except TypeError:
             return r.json()['partitions']
 
-    def arm(self, stay=False):
+    def arm(self, armtype='auto'):
+        if armtype not in ['stay', 'exit', 'auto']:
+            raise Exception('Invalid arm type')
         r = self._session.get(
             self._url + '/command',
             params={'cmd': 'arm',
-                    'type': stay and 'stay' or 'exit'})
+                    'type': armtype})
+        return r.status_code == 200
+
+    def set_bypass(self, zone, bypass):
+        data = {'bypassed': bypass}
+        r = self._session.put(self._url + '/zones/%i' % zone,
+                              data=json.dumps(data),
+                              headers={'Content-Type': 'application/json'})
         return r.status_code == 200
