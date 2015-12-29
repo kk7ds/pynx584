@@ -174,6 +174,111 @@ class System(object):
         self.status_flags = []
 
 
+class LogEvent(object):
+    ZONE_EVENT_CODES = {
+        0: 'Alarm',
+        1: 'Alarm restore',
+        2: 'Bypass',
+        3: 'Bypass restore',
+        4: 'Tamper',
+        5: 'Tamper restore',
+        6: 'Trouble',
+        7: 'Trouble restore',
+        8: 'TX low battery',
+        9: 'TX low battery restore',
+        10: 'Zone lost',
+        11: 'Zone lost restore',
+        12: 'Start of cross time',
+    }
+
+    NONE_EVENT_CODES = {
+        17: 'Special expansion event',
+        18: 'Duress',
+        19: 'Manual fire',
+        20: 'Auxiliary 2 panic',
+        22: 'Panic',
+        23: 'Keypad tamper',
+        34: 'Telephone fault',
+        35: 'Telephone fault restore',
+        38: 'Fail to communicate',
+        39: 'Log full',
+        44: 'Auto-test',
+        45: 'Start program',
+        46: 'End program',
+        47: 'Start download',
+        48: 'End download',
+        50: 'Ground fault',
+        51: 'Ground fault restore',
+        52: 'Manual test',
+        54: 'Start of listen in',
+        55: 'Technician on site',
+        56: 'Technician left',
+        57: 'Control power up',
+        123: 'Begin walk-test',
+        124: 'End walk-test',
+        125: 'Re-exit',
+        127: 'Data lost',
+    }
+
+    DEVICE_EVENT_CODES = {
+        24: 'Control box tamper',
+        25: 'Control box tamper restore',
+        26: 'AC fail',
+        27: 'AC fail restore',
+        28: 'Low battery',
+        29: 'Low battery restore',
+        30: 'Over current',
+        31: 'Over current restore',
+        32: 'Siren tamper',
+        33: 'Siren tamper restore',
+        36: 'Expander trouble',
+        37: 'Expander trouble restore',
+    }
+
+    USER_EVENT_CODES = {
+        40: 'Opening',
+        41: 'Closing',
+        42: 'Exit error',
+        43: 'Recent closing',
+        49: 'Cancel',
+        53: 'Closed with zones bypassed',
+        120: 'First to open',
+        121: 'Last to close',
+        122: 'PIN entered with bit 7 set',
+        126: 'Output trip',
+    }
+
+    def __init__(self):
+        self.number = 0
+        self.log_size = 0
+        self.event_type = 119
+        self.reportable = None
+        self.zone_user_device = 0
+        self.partition_number = 0
+        self.timestamp = None
+
+    @property
+    def event(self):
+        for codes in (self.ZONE_EVENT_CODES, self.USER_EVENT_CODES,
+                      self.DEVICE_EVENT_CODES, self.NONE_EVENT_CODES):
+            if self.event_type in codes:
+                return codes[self.event_type]
+        return 'Unknown event %i' % self.event_type
+
+    @property
+    def event_string(self):
+        if self.event_type in self.ZONE_EVENT_CODES:
+            return 'Zone %i %s' % (self.zone_user_device, self.event)
+        if self.event_type in self.USER_EVENT_CODES:
+            return 'User %i %s' % (self.zone_user_device, self.event)
+        if self.event_type in self.DEVICE_EVENT_CODES:
+            return 'Device %i %s' % (self.zone_user_device, self.event)
+        if self.event_type in self.NONE_EVENT_CODES:
+            return self.event
+        return 'Unknown event %i for target %i' % (self.event_type,
+                                                   self.zone_user_device)
+
+
 class NX584Extension(object):
     def __init__(self, controller):
         self._controller = controller
@@ -188,4 +293,7 @@ class NX584Extension(object):
         pass
 
     def system_status(self, system):
+        pass
+
+    def log_event(self, event):
         pass

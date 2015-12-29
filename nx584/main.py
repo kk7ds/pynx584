@@ -1,5 +1,7 @@
 import argparse
 import logging
+import logging.handlers
+import os
 import threading
 
 from nx584 import api
@@ -18,22 +20,62 @@ def main():
     parser.add_argument('--log', default=None,
                         metavar='FILE',
                         help='Path to log file')
+    parser.add_argument('--connect', default=None,
+                        metavar='HOST:PORT',
+                        help='Host and port to connect for serial stream')
+    parser.add_argument('--serial', default=None,
+                        metavar='PORT',
+                        help='Serial port to open for stream')
+    parser.add_argument('--baudrate', default=38400, type=int,
+                        metavar='BAUD',
+                        help='Serial baudrate')
     args = parser.parse_args()
 
-    if args.debug:
-        level = logging.DEBUG
-    else:
-        level = logging.INFO
+    LOG = logging.getLogger()
+    LOG.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(LOG_FORMAT)
+    istty = os.isatty(0)
 
-    logging.basicConfig(level=level, format=LOG_FORMAT,
-                        filename=args.log)
+    if args.debug and not istty:
+        debug_handler = logging.FileHandler('debug.log')
+        debug_handler.setFormatter(formatter)
+        debug_handler.setLevel(logging.DEBUG)
+        LOG.addHandler(debug_handler)
+
+    if istty:
+        print 'Setting up logging to console'
+        verbose_handler = logging.StreamHandler()
+        verbose_handler.setFormatter(formatter)
+        verbose_handler.setLevel(args.debug and logging.DEBUG or logging.INFO)
+        LOG.addHandler(verbose_handler)
+
+    if args.log:
+        log_handler = logging.handlers.RotatingFileHandler(
+            args.log,
+            maxBytes=1024*1024*10,
+            backupCount=3)
+        log_handler.setFormatter(formatter)
+        log_handler.setLevel(logging.INFO)
+        LOG.addHandler(log_handler)
+
+    LOG.info('Ready')
     logging.getLogger('connectionpool').setLevel(logging.WARNING)
 
-    ctrl = controller.NXController('/dev/ttyUSB0', 38400, args.config)
+    if args.connect:
+        host, port = args.connect.split(':')
+        ctrl = controller.NXController((host, int(port)),
+                                       args.config)
+    elif serial:
+        ctrl = controller.NXController((args.serial, args.baudrate),
+                                       args.config)
+    else:
+        LOG.error('Either host:port or serial and baudrate are required')
+        return
+
     api.CONTROLLER = ctrl
 
     t = threading.Thread(target=ctrl.controller_loop)
     t.daemon = True
     t.start()
 
-    api.app.run(debug=False, host='0.0.0.0', port=5000)
+    api.app.run(debug=False, host='0.0.0.0', port=5007)

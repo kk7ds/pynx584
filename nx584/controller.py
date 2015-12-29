@@ -2,12 +2,15 @@ try:
     import ConfigParser as configparser
 except ImportError:
     import configparser
+import datetime
 import logging
 import serial
+import socket
 import time
 
 import stevedore.extension
 
+from nx584 import mail
 from nx584 import model
 
 
@@ -71,12 +74,36 @@ class NXFrame(object):
         return model.MSG_TYPES[self.msgtype]
 
 
+class SocketWrapper(object):
+    def __init__(self, s):
+        self._s = s
+
+    def write(self, buf):
+        self._s.send(buf)
+
+    def readline(self):
+        try:
+            while True:
+                c = self._s.recv(1)
+                if c == '\n':
+                    break
+                LOG.warning('Seeking (discarded %s %02x)' % (c, ord(c)))
+        except socket.timeout:
+            return ''
+
+        line = ''
+        while not line.endswith('\r'):
+            c = self._s.recv(1)
+            if c is None:
+                break
+            line += c
+        return line
+
+
 class NXController(object):
-    def __init__(self, port, baudrate, configfile):
-        self._port = port
-        self._baudrate = baudrate
+    def __init__(self, portspec, configfile):
+        self._portspec = portspec
         self._configfile = configfile
-        self._ser = serial.Serial(port, baudrate, timeout=0.25)
         self._queue_waiting = False
         self._queue_should_wait = False
         self._queue = []
@@ -88,6 +115,18 @@ class NXController(object):
         self.extensions = [ext_mgr[name] for name in ext_mgr.names()]
         LOG.info('Loaded extensions %s' % ext_mgr.names())
         self._load_config()
+        self.connect()
+
+    def connect(self):
+        if '/' in self._portspec[0]:
+            port, baudrate = self._portspec
+            self._ser = serial.Serial(port, baudrate, timeout=0.25)
+        else:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.connect(self._portspec)
+            s.settimeout(0.5)
+            self._ser = SocketWrapper(s)
+            LOG.info('Connected')
 
     def _load_config(self):
         self._config = configparser.ConfigParser()
@@ -159,6 +198,19 @@ class NXController(object):
     def get_system_status(self):
         self._queue.append([0x28])
 
+    def get_partition_status(self, partition):
+        self._queue.append([0x26, partition - 1])
+
+    def set_time(self):
+        now = datetime.datetime.now()
+        self._queue.append([0x3B,
+                            now.year - 2000,
+                            now.month,
+                            now.day,
+                            now.hour,
+                            now.minute,
+                            ((now.weekday() + 1) % 7) + 1])
+
     def _get_zone(self, number):
         if number not in self.zones:
             self.zones[number] = model.Zone(number)
@@ -205,20 +257,66 @@ class NXController(object):
         for ext in self.extensions:
             ext.obj.zone_status(zone)
 
+    def _send_flag_notifications(self, flags_section, flags_key, asserted,
+                                 deasserted, email_fn):
+        changed = asserted | deasserted
+        try:
+            flags = set(self._config.get(flags_section,
+                                         flags_key).split(','))
+        except (configparser.NoOptionError, configparser.NoSectionError):
+            flags = set([])
+
+        if any([flag in changed for flag in flags]):
+            if deasserted & flags:
+                status = '(restored)'
+            else:
+                status = ''
+            sub = '%s %s' % (list(changed & flags), status)
+            msg = ('Asserted: %s\n' % (', '.join(asserted)) +
+                   'Deasserted: %s\n' % (', '.join(deasserted)))
+            email_fn(sub, msg)
+
     def process_msg_6(self, frame):
         partition = self._get_partition(frame.data[0] + 1)
         types = frame.data[1:5] + frame.data[6:8]
+        was_armed = partition.armed
+        orig_flags = partition.condition_flags
         partition.condition_flags = []
         for byte, flags in enumerate(model.Partition.CONDITION_FLAGS):
             for bit, name in enumerate(flags):
                 if types[byte] & (1 << bit):
                     partition.condition_flags.append(name)
-        LOG.info('Partition %i %s' % (partition.number,
-                                      partition.armed))
+        if was_armed != partition.armed:
+            LOG.info('Partition %i %s armed' % (
+                partition.number,
+                partition.armed and '' or 'not'))
         LOG.debug('Partition %i %s' % (partition.number,
                                        partition.condition_flags))
         for ext in self.extensions:
             ext.obj.partition_status(partition)
+
+        deasserted = set(orig_flags) - set(partition.condition_flags)
+        asserted = set(partition.condition_flags) - set(orig_flags)
+        changed = asserted | deasserted
+
+        if changed:
+            mail.send_partition_email(self._config, partition,
+                                      deasserted, asserted)
+
+            def email_status(sub, msg):
+                mail.send_partition_status_email(self._config, partition,
+                                                 'status', sub, msg)
+
+            def email_alarms(sub, msg):
+                mail.send_partition_status_email(self._config, partition,
+                                                 'alarms', sub, msg)
+
+            section = 'partition_%i' % partition.number
+            self._send_flag_notifications(section, 'status_flags', asserted,
+                                          deasserted, email_status)
+            self._send_flag_notifications(section, 'alarm_flags', asserted,
+                                          deasserted, email_alarms)
+
 
     def process_msg_8(self, frame):
         errors = model.System.STATUS_FLAGS[1] + model.System.STATUS_FLAGS[2]
@@ -248,13 +346,24 @@ class NXController(object):
             msg = 'System %sasserts %s' % (pfx, flag)
             fn(msg)
 
-        for flag in set(orig_flags) - set(self.system.status_flags):
+        deasserted = set(orig_flags) - set(self.system.status_flags)
+        asserted = set(self.system.status_flags) - set(orig_flags)
+
+        for flag in deasserted:
             _log(flag, False)
-        for flag in set(self.system.status_flags) - set(orig_flags):
+        for flag in asserted:
             _log(flag, True)
 
         for ext in self.extensions:
             ext.obj.system_status(self.system)
+
+        if asserted or deasserted:
+            mail.send_system_email(self._config, deasserted, asserted)
+
+        for i in range(1, 9):
+            if ('Valid partition %i' % i) in asserted:
+                LOG.debug('Requesting partition status for %i' % i)
+                self.get_partition_status(i)
 
     def process_msg_9(self, frame):
         commands = {0x28: 'on', 0x38: 'off'}
@@ -264,6 +373,33 @@ class NXController(object):
         LOG.info('Device %s%02i command %s' % (house, unit, cmd))
         for ext in self.extensions:
             ext.obj.device_command(house, unit, cmd)
+
+    def process_msg_10(self, frame):
+        event = model.LogEvent()
+        event.number = frame.data[0]
+        event.log_size = frame.data[1]
+        event.event_type = frame.data[2] & 0x3F
+        event.reportable = bool(frame.data[2] & 0x80)
+        event.zone_user_device = frame.data[3]
+        event.partition_number = frame.data[4]
+        month = frame.data[5]
+        day = frame.data[6]
+        hour = frame.data[7]
+        minute = frame.data[8]
+        now = datetime.datetime.now()
+        if month > now.month:
+            year = now.year - 1
+        else:
+            year = now.year
+        event.timestamp = datetime.datetime(
+            year=year, month=month, day=day,
+            hour=hour, minute=minute)
+        LOG.info('Log event: %s at %s' % (event.event_string,
+                                          event.timestamp))
+        for ext in self.extensions:
+            ext.obj.log_event(event)
+
+        mail.send_log_event_mail(self._config, event)
 
     def _run_queue(self):
         if not self._queue:
@@ -277,6 +413,7 @@ class NXController(object):
 
         self.send_nack()
         self.get_system_status()
+        self.set_time()
 
         try:
             max_zone = self._config.getint('config', 'max_zone')

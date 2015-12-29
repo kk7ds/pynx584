@@ -32,7 +32,13 @@ def do_list_partitions(clnt, args):
 
 
 def do_arm(clnt, args):
-    clnt.arm(stay=args.stay)
+    if args.command == 'arm-stay':
+        mode = 'stay'
+    elif args.command == 'arm-exit':
+        mode = 'exit'
+    else:
+        mode = 'auto'
+    clnt.arm(mode)
 
 
 def do_summary(clnt, args):
@@ -79,7 +85,7 @@ def main():
     clnt = client.Client(url)
     if args.command == 'list':
         do_list(clnt, args)
-    elif args.command == 'arm':
+    elif args.command in ['arm', 'arm-stay', 'arm-exit', 'arm-auto']:
         do_arm(clnt, args)
     elif args.command == 'partitions':
         do_list_partitions(clnt, args)
