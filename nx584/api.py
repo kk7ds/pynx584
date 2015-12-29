@@ -32,7 +32,8 @@ def index_zones():
     try:
         result = json.dumps({
             'zones': [show_zone(zone) for zone in CONTROLLER.zones.values()]})
-        return result
+        return flask.Response(result,
+                              mimetype='application/json')
     except Exception as e:
         LOG.exception('Failed to index zones')
 
@@ -43,7 +44,8 @@ def index_partitions():
         result = json.dumps({
             'partitions': [show_partition(partition)
                            for partition in CONTROLLER.partitions.values()]})
-        return result
+        return flask.Response(result,
+                              mimetype='application/json')
     except Exception, e:
         LOG.exception('Failed to index partitions')
 
@@ -58,6 +60,7 @@ def command():
             CONTROLLER.arm_exit()
         else:
             CONTROLLER.arm_auto()
+    return flask.Response()
 
 
 @app.route('/zones/<int:zone>', methods=['PUT'])
@@ -71,4 +74,6 @@ def put_zone(zone):
         if want_bypass == zone.bypassed:
             flask.abort(409)
         CONTROLLER.zone_bypass_toggle(zone.number)
-    return json.dumps(show_zone(zone))
+    result = json.dumps(show_zone(zone))
+    return flask.Response(result,
+                          mimetype='application/json')
