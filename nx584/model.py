@@ -279,6 +279,23 @@ class LogEvent(object):
                                                    self.zone_user_device)
 
 
+class User(object):
+    AUTHORITY_FLAGS = (
+        ['Reserved', 'Arm only', 'Arm only (during close window)',
+         'Master / Program', 'Arm / Disarm', 'Bypass enable',
+         'Open / close report enable'],
+        ['Output 1 enable', 'Output 2 enable', 'Output 3 enable',
+         'Output 4 enable', 'Arm / disarm', 'Bypass enable',
+         'Open / close report enable'],
+    )
+
+    def __init__(self, number):
+        self.number = number
+        self.pin = []
+        self.authority_flags = []
+        self.authorized_partitions = []
+
+
 class NX584Extension(object):
     def __init__(self, controller):
         self._controller = controller

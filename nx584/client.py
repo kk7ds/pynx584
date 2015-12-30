@@ -1,5 +1,6 @@
 import json
 import requests
+import time
 
 
 class Client(object):
@@ -36,3 +37,27 @@ class Client(object):
                               data=json.dumps(data),
                               headers={'Content-Type': 'application/json'})
         return r.status_code == 200
+
+    def get_user(self, master_pin, user_number):
+        tried = False
+        while True:
+            r = self._session.get(self._url + '/users/%i' % user_number,
+                                  headers={'Master-Pin': master_pin})
+            if r.status_code == 204:
+                if tried:
+                    print('Failed to retrieve info for user')
+                    break
+                tried = True
+                time.sleep(5)
+                continue
+            if r.status_code == 200:
+                return r.json()
+            print('Status code %i' % r.status_code)
+            break
+
+    def put_user(self, master_pin, user):
+        r = self._session.put(self._url + '/users/%i' % user['number'],
+                              headers={'Master-Pin': master_pin,
+                                       'Content-Type': 'application/json'},
+                              data=json.dumps(user))
+        return r.status_code < 300

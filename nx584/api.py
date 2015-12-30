@@ -27,6 +27,19 @@ def show_partition(partition):
     }
 
 
+def show_user(user):
+    if all([x > 9 for x in user.pin]):
+        pin = None
+    else:
+        pin = ''.join([str(c) if c < 10 else '' for c in user.pin])
+    return {
+        'number': user.number,
+        'pin': pin,
+        'authority_flags': user.authority_flags,
+        'authorized_partitions': user.authorized_partitions,
+    }
+
+
 @app.route('/zones')
 def index_zones():
     try:
@@ -76,4 +89,55 @@ def put_zone(zone):
         CONTROLLER.zone_bypass_toggle(zone.number)
     result = json.dumps(show_zone(zone))
     return flask.Response(result,
+                          mimetype='application/json')
+
+
+@app.route('/users/<int:user>')
+def get_user(user):
+    master_pin = flask.request.headers.get('Master-Pin')
+    if not master_pin:
+        return 'Master PIN required', 403
+    if user not in CONTROLLER.users:
+        CONTROLLER.get_user_info(master_pin, user)
+        return '', 204
+
+    user = CONTROLLER.users[user]
+    result = json.dumps(show_user(user))
+    return flask.Response(result,
+                          mimetype='application/json')
+
+
+@app.route('/users/<int:user>', methods=['PUT'])
+def put_user(user):
+    if user == 1:
+        return 'I refuse to let you break your master user', 403
+    master_pin = flask.request.headers.get('Master-Pin')
+    if not master_pin:
+        return 'Master PIN required', 403
+    if user not in CONTROLLER.users:
+        CONTROLLER.get_user_info(master_pin, user)
+        return '', 204
+
+    if 'master' in ''.join(user.authority_flags).lower():
+        return 'I refuse to let you break a master user', 403
+
+    user = CONTROLLER.users[user]
+    userdata = flask.request.json
+    changed = []
+    if 'pin' in userdata:
+        pin = userdata['pin']
+        changed.append('pin')
+        if pin is None:
+            user.pin = [15] * 6
+        elif len(pin) == 4:
+            user.pin = [int(i) for i in pin] + [15, 15]
+        elif len(pin) == 6:
+            user.pin = [int(i) for i in pin]
+        else:
+            return 'Invalid PIN format', 400
+
+    if changed:
+        CONTROLLER.set_user_info(master_pin, user, changed)
+
+    return flask.Response(json.dumps(show_user(user)),
                           mimetype='application/json')

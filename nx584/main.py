@@ -37,7 +37,10 @@ def main():
     istty = os.isatty(0)
 
     if args.debug and not istty:
-        debug_handler = logging.FileHandler('debug.log')
+        debug_handler = logging.handlers.RotatingFileHandler(
+            'debug.log',
+            maxBytes=1024*1024*10,
+            backupCount=3)
         debug_handler.setFormatter(formatter)
         debug_handler.setLevel(logging.DEBUG)
         LOG.addHandler(debug_handler)

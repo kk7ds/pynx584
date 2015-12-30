@@ -14,6 +14,12 @@ def parse_args():
                         help='Zone number for zone-related commands')
     parser.add_argument('--partition', default=None, type=int,
                         help='Partition number for partition-related commands')
+    parser.add_argument('--user', default=None, type=int,
+                        help='User number for user-related commands')
+    parser.add_argument('--master', default=None,
+                        help='Master PIN for commands that require it')
+    parser.add_argument('--pin', default=None,
+                        help='User PIN to set (or `x` to disable)')
     parser.add_argument('--stay', default=False, action='store_true')
     parser.add_argument('--host', default='localhost:5000',
                         help='Host and port (localhost:5000)')
@@ -79,6 +85,29 @@ def do_show(clnt, args):
     else:
         print('Zone or Partition required')
 
+
+def do_get_user(clnt, args):
+    if not (args.user and args.master):
+        print('User number and master pin required')
+        return
+    user = clnt.get_user(args.master, args.user)
+    if user:
+        pprint.pprint(user)
+    else:
+        print('Unable to fetch user information')
+
+
+def do_set_user_pin(clnt, args):
+    if not (args.user and args.master and args.pin):
+        print('User number and master pin and user pin required')
+        return
+    user = {
+        'number': args.user,
+        'pin': None if args.pin.lower() == 'x' else args.pin,
+    }
+    clnt.put_user(args.master, user)
+
+
 def main():
     args = parse_args()
     url = 'http://%s:%s' % tuple(args.host.split(':', 1))
@@ -95,6 +124,10 @@ def main():
         do_bypass(clnt, args)
     elif args.command == 'show':
         do_show(clnt, args)
+    elif args.command == 'getuser':
+        do_get_user(clnt, args)
+    elif args.command == 'setuserpin':
+        do_set_user_pin(clnt, args)
 
 
 if __name__ == '__main__':

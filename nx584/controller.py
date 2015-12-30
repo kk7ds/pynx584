@@ -31,6 +31,16 @@ def make_ascii(data):
     return ''.join(data_chars)
 
 
+def make_pin_buffer(digits):
+    pinbuf = []
+    for i in range(0, 6, 2):
+        try:
+            pinbuf.append((int(digits[i + 1]) << 4) | int(digits[i]))
+        except (IndexError, TypeError):
+            pinbuf.append(0xFF)
+    return pinbuf
+
+
 def fletcher(data, k=16):
     if  k not in (16, 32, 64):
         raise ValueError("Valid choices of k are 16, 32 and 64")
@@ -66,7 +76,7 @@ class NXFrame(object):
         self.checksum = (line_bytes[-2] << 8) & line_bytes[-1]
         self.data = line_bytes[2:-2]
         self.ackreq = bool(msgtypefield & 0x80)
-        self.msgtype = msgtypefield & 0x3F
+        self.msgtype = msgtypefield & 0x7F
         return self
 
     @property
@@ -109,6 +119,7 @@ class NXController(object):
         self._queue = []
         self.zones = {}
         self.partitions = {}
+        self.users = {}
         self.system = model.System()
         ext_mgr = stevedore.extension.ExtensionManager(
             'pynx584', invoke_on_load=True, invoke_args=(self,))
@@ -211,6 +222,28 @@ class NXController(object):
                             now.minute,
                             ((now.weekday() + 1) % 7) + 1])
 
+    def get_user_info(self, master_pin, user_number):
+        if len(master_pin) < 6:
+            master_pin += '00'
+        if len(master_pin) != 6:
+            LOG.error('Master pin %r incorrect length' % master_pin)
+            return False
+        digits = make_pin_buffer(master_pin)
+        self._queue.append([0x32] + digits + [user_number])
+        LOG.debug('Sending for user info %s' % digits)
+        return True
+
+    def set_user_info(self, master_pin, user, changed):
+        if user.number < 1:
+            LOG.error('Unable to set PIN for user %i' % user.number)
+            return False
+        if 'pin' in changed:
+            mstr_digits = make_pin_buffer(master_pin)
+            user_digits = make_pin_buffer(user.pin)
+            self._queue.append(
+                [0x34] + mstr_digits + [user.number] + user_digits)
+        return True
+
     def _get_zone(self, number):
         if number not in self.zones:
             self.zones[number] = model.Zone(number)
@@ -220,6 +253,11 @@ class NXController(object):
         if number not in self.partitions:
             self.partitions[number] = model.Partition(number)
         return self.partitions[number]
+
+    def _get_user(self, number):
+        if number not in self.users:
+            self.users[number] = model.User(number)
+        return self.users[number]
 
     def process_msg_3(self, frame):
         # Zone Name
@@ -289,7 +327,7 @@ class NXController(object):
         if was_armed != partition.armed:
             LOG.info('Partition %i %s armed' % (
                 partition.number,
-                partition.armed and '' or 'not'))
+                '' if partition.armed else 'not'))
         LOG.debug('Partition %i %s' % (partition.number,
                                        partition.condition_flags))
         for ext in self.extensions:
@@ -378,7 +416,7 @@ class NXController(object):
         event = model.LogEvent()
         event.number = frame.data[0]
         event.log_size = frame.data[1]
-        event.event_type = frame.data[2] & 0x3F
+        event.event_type = frame.data[2] & 0x7F
         event.reportable = bool(frame.data[2] & 0x80)
         event.zone_user_device = frame.data[3]
         event.partition_number = frame.data[4]
@@ -400,6 +438,25 @@ class NXController(object):
             ext.obj.log_event(event)
 
         mail.send_log_event_mail(self._config, event)
+
+    def process_msg_18(self, frame):
+        user = self._get_user(frame.data[0])
+        user.pin = []
+        user.authority_flags = []
+        user.authorized_partitions = []
+        for byte in frame.data[1:4]:
+            user.pin.append(byte & 0x0F)
+            user.pin.append((byte & 0xF0) >> 4)
+        authbytetype = frame.data[4] & 0x80
+        authbyte = frame.data[4] & 0x7F
+        flags = model.User.AUTHORITY_FLAGS[1 if authbytetype else 0]
+        for i, flag in enumerate(flags):
+            if authbyte & (1 << i):
+                user.authority_flags.append(flag)
+        for i in range(0, 8):
+            if frame.data[5] & (1 << i):
+                user.authorized_partitions.append(i + 1)
+        LOG.info('Received information about user %i' % user.number)
 
     def _run_queue(self):
         if not self._queue:
