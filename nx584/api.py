@@ -74,6 +74,8 @@ def command():
             CONTROLLER.arm_exit()
         else:
             CONTROLLER.arm_auto()
+    elif args.get('cmd') == 'disarm':
+        CONTROLLER.disarm(args.get('master_pin'))
     return flask.Response()
 
 

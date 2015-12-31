@@ -20,7 +20,6 @@ def parse_args():
                         help='Master PIN for commands that require it')
     parser.add_argument('--pin', default=None,
                         help='User PIN to set (or `x` to disable)')
-    parser.add_argument('--stay', default=False, action='store_true')
     parser.add_argument('--host', default='localhost:5000',
                         help='Host and port (localhost:5000)')
     args = parser.parse_args()
@@ -45,6 +44,13 @@ def do_arm(clnt, args):
     else:
         mode = 'auto'
     clnt.arm(mode)
+
+
+def do_disarm(clnt, args):
+    if not args.master:
+        print('Master pin required')
+        return
+    clnt.disarm(args.master)
 
 
 def do_summary(clnt, args):
@@ -132,6 +138,8 @@ def main():
         do_list(clnt, args)
     elif args.command in ['arm', 'arm-stay', 'arm-exit', 'arm-auto']:
         do_arm(clnt, args)
+    elif args.command == 'disarm':
+        do_disarm(clnt, args)
     elif args.command == 'partitions':
         do_list_partitions(clnt, args)
     elif args.command == 'summary':

@@ -31,6 +31,13 @@ class Client(object):
                     'type': armtype})
         return r.status_code == 200
 
+    def disarm(self, master_pin):
+        r = self._session.get(
+            self._url + '/command',
+            params={'cmd': 'disarm',
+                    'master_pin': master_pin})
+        return r.status_code == 200
+
     def set_bypass(self, zone, bypass):
         data = {'bypassed': bypass}
         r = self._session.put(self._url + '/zones/%i' % zone,
