@@ -39,16 +39,17 @@ class Client(object):
         return r.status_code == 200
 
     def get_user(self, master_pin, user_number):
-        tried = False
+        params = {}
         while True:
             r = self._session.get(self._url + '/users/%i' % user_number,
+                                  params=params,
                                   headers={'Master-Pin': master_pin})
-            if r.status_code == 204:
-                if tried:
-                    print('Failed to retrieve info for user')
-                    break
-                tried = True
-                time.sleep(5)
+            if r.status_code == 202:
+                params['retry'] = 'yes'
+                time.sleep(1)
+                continue
+            if r.status_code == 404:
+                time.sleep(1)
                 continue
             if r.status_code == 200:
                 return r.json()
@@ -56,8 +57,12 @@ class Client(object):
             break
 
     def put_user(self, master_pin, user):
+        cur_user = self.get_user(master_pin, user['number'])
+        if not cur_user:
+            return None
         r = self._session.put(self._url + '/users/%i' % user['number'],
                               headers={'Master-Pin': master_pin,
                                        'Content-Type': 'application/json'},
                               data=json.dumps(user))
-        return r.status_code < 300
+        if r.status_code == 200:
+            return r.json()

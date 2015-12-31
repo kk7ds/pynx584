@@ -97,6 +97,18 @@ def do_get_user(clnt, args):
         print('Unable to fetch user information')
 
 
+def do_user_summary(clnt, args):
+    t = prettytable.PrettyTable(['User', 'PIN', 'Master'])
+    if not (args.user and args.master):
+        print('User number (max) and master pin required')
+        return
+    for i in range(0, args.user):
+        user = clnt.get_user(args.master, i + 1)
+        t.add_row([user['number'], user['pin'],
+                   'Master / Program' in user['authority_flags']])
+    print t
+
+
 def do_set_user_pin(clnt, args):
     if not (args.user and args.master and args.pin):
         print('User number and master pin and user pin required')
@@ -105,7 +117,11 @@ def do_set_user_pin(clnt, args):
         'number': args.user,
         'pin': None if args.pin.lower() == 'x' else args.pin,
     }
-    clnt.put_user(args.master, user)
+    user = clnt.put_user(args.master, user)
+    if user:
+        pprint.pprint(user)
+    else:
+        print('Unable to set user information')
 
 
 def main():
@@ -128,6 +144,8 @@ def main():
         do_get_user(clnt, args)
     elif args.command == 'setuserpin':
         do_set_user_pin(clnt, args)
+    elif args.command == 'users':
+        do_user_summary(clnt, args)
 
 
 if __name__ == '__main__':
