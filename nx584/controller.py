@@ -319,6 +319,7 @@ class NXController(object):
 
     def process_msg_6(self, frame):
         partition = self._get_partition(frame.data[0] + 1)
+        partition.last_user = frame.data[5]
         types = frame.data[1:5] + frame.data[6:8]
         was_armed = partition.armed
         orig_flags = partition.condition_flags

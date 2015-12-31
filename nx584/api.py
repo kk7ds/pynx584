@@ -24,6 +24,7 @@ def show_partition(partition):
         'number': partition.number,
         'condition_flags': partition.condition_flags,
         'armed': 'Armed' in partition.condition_flags,
+        'last_user': partition.last_user,
     }
 
 
