@@ -59,7 +59,7 @@ def index_partitions():
                            for partition in CONTROLLER.partitions.values()]})
         return flask.Response(result,
                               mimetype='application/json')
-    except Exception, e:
+    except Exception as e:
         LOG.exception('Failed to index partitions')
 
 
@@ -94,12 +94,16 @@ def put_zone(zone):
 
 @app.route('/users/<int:user>')
 def get_user(user):
+    args = flask.request.args
     master_pin = flask.request.headers.get('Master-Pin')
     if not master_pin:
         return 'Master PIN required', 403
     if user not in CONTROLLER.users:
-        CONTROLLER.get_user_info(master_pin, user)
-        return '', 204
+        if 'retry' not in args:
+            CONTROLLER.get_user_info(master_pin, user)
+            return '', 202
+        else:
+            return 'Not Found', 404
 
     user = CONTROLLER.users[user]
     result = json.dumps(show_user(user))
@@ -118,10 +122,10 @@ def put_user(user):
         CONTROLLER.get_user_info(master_pin, user)
         return '', 204
 
+    user = CONTROLLER.users[user]
     if 'master' in ''.join(user.authority_flags).lower():
         return 'I refuse to let you break a master user', 403
 
-    user = CONTROLLER.users[user]
     userdata = flask.request.json
     changed = []
     if 'pin' in userdata:

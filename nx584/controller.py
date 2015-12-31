@@ -89,12 +89,12 @@ class SocketWrapper(object):
         self._s = s
 
     def write(self, buf):
-        self._s.send(buf)
+        self._s.send(buf.encode())
 
     def readline(self):
         try:
             while True:
-                c = self._s.recv(1)
+                c = self._s.recv(1).decode()
                 if c == '\n':
                     break
                 LOG.warning('Seeking (discarded %s %02x)' % (c, ord(c)))
@@ -103,7 +103,7 @@ class SocketWrapper(object):
 
         line = ''
         while not line.endswith('\r'):
-            c = self._s.recv(1)
+            c = self._s.recv(1).decode()
             if c is None:
                 break
             line += c
@@ -240,6 +240,9 @@ class NXController(object):
         if 'pin' in changed:
             mstr_digits = make_pin_buffer(master_pin)
             user_digits = make_pin_buffer(user.pin)
+            LOG.info('Setting user %i PIN to `%s`' % (
+                user.number,
+                ''.join(str(x) for x in user.pin if x < 10)))
             self._queue.append(
                 [0x34] + mstr_digits + [user.number] + user_digits)
         return True

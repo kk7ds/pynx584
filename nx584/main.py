@@ -46,7 +46,6 @@ def main():
         LOG.addHandler(debug_handler)
 
     if istty:
-        print 'Setting up logging to console'
         verbose_handler = logging.StreamHandler()
         verbose_handler.setFormatter(formatter)
         verbose_handler.setLevel(args.debug and logging.DEBUG or logging.INFO)
