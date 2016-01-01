@@ -214,6 +214,7 @@ class LogEvent(object):
         55: 'Technician on site',
         56: 'Technician left',
         57: 'Control power up',
+        119: 'Time set',
         123: 'Begin walk-test',
         124: 'End walk-test',
         125: 'Re-exit',
