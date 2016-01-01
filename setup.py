@@ -7,6 +7,6 @@ setup(name='pynx584',
       author_email='dsmith+nx584@danplanet.com',
       url='http://github.com/kk7ds/pynx584',
       packages=['nx584'],
-      install_requires=['requests', 'stevedore'],
+      install_requires=['requests', 'stevedore', 'prettytable', 'serial'],
       scripts=['nx584_server', 'nx584_client'],
   )
