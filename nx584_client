@@ -112,7 +112,7 @@ def do_user_summary(clnt, args):
         user = clnt.get_user(args.master, i + 1)
         t.add_row([user['number'], user['pin'],
                    'Master / Program' in user['authority_flags']])
-    print t
+    print(t)
 
 
 def do_set_user_pin(clnt, args):
