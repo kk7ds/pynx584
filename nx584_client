@@ -20,8 +20,8 @@ def parse_args():
                         help='Master PIN for commands that require it')
     parser.add_argument('--pin', default=None,
                         help='User PIN to set (or `x` to disable)')
-    parser.add_argument('--host', default='localhost:5000',
-                        help='Host and port (localhost:5000)')
+    parser.add_argument('--host', default='localhost:5007',
+                        help='Host and port (localhost:5007)')
     args = parser.parse_args()
     return args
 
