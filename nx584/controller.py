@@ -271,7 +271,7 @@ class NXController(object):
         # Zone Name
         number = frame.data[0] + 1
         name = ''.join([chr(x) for x in frame.data[1:]])
-        LOG.debug('Zone %i: %s' % (number, repr(name.strip())))
+        LOG.info('Zone %i: %s' % (number, repr(name.strip())))
         self._get_zone(number).name = name.strip()
         LOG.debug('Zone info from %s' % self.zones.keys())
         self._write_config()
@@ -477,8 +477,6 @@ class NXController(object):
     def controller_loop(self):
         self.running = True
 
-        self.send_nack()
-        self.get_system_status()
         self.set_time()
 
         try:
@@ -508,7 +506,12 @@ class NXController(object):
             if frame.ack_required:
                 self.send_ack()
             else:
-                self._run_queue()
+                pass
+                # This is sometimes too fast if we get two responses
+                # from a single command (like time set). Need to keep
+                # track of waiting for replies and re-send things when
+                # we don't hear back.
+                # self._run_queue()
             name = 'process_msg_%i' % frame.msgtype
             if hasattr(self, name):
                 getattr(self, name)(frame)
