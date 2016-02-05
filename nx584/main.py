@@ -67,7 +67,7 @@ def main():
         host, port = args.connect.split(':')
         ctrl = controller.NXController((host, int(port)),
                                        args.config)
-    elif serial:
+    elif args.serial:
         ctrl = controller.NXController((args.serial, args.baudrate),
                                        args.config)
     else:
