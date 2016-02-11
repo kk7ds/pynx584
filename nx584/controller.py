@@ -10,6 +10,7 @@ import time
 
 import stevedore.extension
 
+from nx584 import event_queue
 from nx584 import mail
 from nx584 import model
 
@@ -126,6 +127,7 @@ class NXController(object):
         self.extensions = [ext_mgr[name] for name in ext_mgr.names()]
         LOG.info('Loaded extensions %s' % ext_mgr.names())
         self._load_config()
+        self.event_queue = event_queue.EventQueue(100)
         self.connect()
 
     def connect(self):
@@ -161,8 +163,11 @@ class NXController(object):
             if (not self._config.has_option('zones', str(zone.number)) and
                     zone.name != 'Unknown'):
                 self._config.set('zones', str(zone.number), zone.name)
-        with open(self._configfile, 'w') as configfile:
-            self._config.write(configfile)
+        try:
+            with open(self._configfile, 'w') as configfile:
+                self._config.write(configfile)
+        except IOError as ex:
+            LOG.error('Unable to write %s: %s' % (self._configfile, ex))
 
     @property
     def interior_zones(self):
@@ -300,6 +305,13 @@ class NXController(object):
         LOG.debug('Zone %i (%s) %s %s' % (zone.number, zone.name,
                                           zone.condition_flags,
                                           zone.type_flags))
+        event = {'type': 'zone_status',
+                 'timestamp': datetime.datetime.now().isoformat(),
+                 'zone': zone.number,
+                 'zone_state': zone.state,
+                 'zone_flags': zone.condition_flags,
+             }
+        self.event_queue.push(event)
         for ext in self.extensions:
             ext.obj.zone_status(zone)
 
@@ -345,6 +357,16 @@ class NXController(object):
         deasserted = set(orig_flags) - set(partition.condition_flags)
         asserted = set(partition.condition_flags) - set(orig_flags)
         changed = asserted | deasserted
+
+        event = {'type': 'partition',
+                 'timestamp': datetime.datetime.now().isoformat(),
+                 'partition': partition.number,
+                 'partition_flags_asserted': list(asserted),
+                 'partition_flags': partition.condition_flags,
+                 'partition_was_armed': was_armed,
+                 'partition_is_armed': partition.armed,
+             }
+        self.event_queue.push(event)
 
         if changed:
             mail.send_partition_email(self._config, partition,
@@ -418,6 +440,11 @@ class NXController(object):
         unit = frame.data[1]
         cmd = commands.get(frame.data[2], frame.data[2])
         LOG.info('Device %s%02i command %s' % (house, unit, cmd))
+        event = {'type': 'device-command',
+                 'timestamp': datetime.datetime.now().isoformat(),
+                 'device': '%s%02i' % (house, unit),
+                 'command': '%s' % cmd}
+        self.event_queue.push(event)
         for ext in self.extensions:
             ext.obj.device_command(house, unit, cmd)
 
@@ -443,6 +470,11 @@ class NXController(object):
             hour=hour, minute=minute)
         LOG.info('Log event: %s at %s' % (event.event_string,
                                           event.timestamp))
+        _event = {'type': 'log',
+                  'event': event.event_string,
+                  'timestamp': event.timestamp.isoformat(),
+              }
+        self.event_queue.push(_event)
         for ext in self.extensions:
             ext.obj.log_event(event)
 

@@ -7,6 +7,7 @@ class Client(object):
     def __init__(self, url):
         self._url = url
         self._session = requests.Session()
+        self._last_event_index = 0
 
     def list_zones(self):
         r = self._session.get(self._url + '/zones')
@@ -73,3 +74,23 @@ class Client(object):
                               data=json.dumps(user))
         if r.status_code == 200:
             return r.json()
+
+    def get_events(self, index=None, timeout=None):
+        if index is None:
+            index = self._last_event_index
+        if timeout is None:
+            timeout = 60
+        r = self._session.get(self._url + '/events',
+                              params={'index': index,
+                                      'timeout': timeout})
+        if r.status_code == 200:
+            data = r.json()
+            self._last_event_index = data['index']
+            return data['events']
+
+    def get_version(self):
+        r = self._session.get(self._url + '/version')
+        if r.status_code == 404:
+            return '1.0'
+        else:
+            return r.json()['version']

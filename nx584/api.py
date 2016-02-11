@@ -148,3 +148,22 @@ def put_user(user):
 
     return flask.Response(json.dumps(show_user(user)),
                           mimetype='application/json')
+
+
+@app.route('/events')
+def get_events():
+    index = int(flask.request.args.get('index', 0))
+    timeout = int(flask.request.args.get('timeout', 10))
+    events = CONTROLLER.event_queue.get(index, timeout=timeout)
+    if events:
+        index = events[-1].number
+        events = [event.payload for event in events]
+    return flask.Response(json.dumps({'events': events,
+                                      'index': index}),
+                          mimetype='application/json')
+
+
+@app.route('/version')
+def get_version():
+    return flask.Response(json.dumps({'version': '1.1'}),
+                          mimetype='application/json')

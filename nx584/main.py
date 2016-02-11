@@ -80,4 +80,4 @@ def main():
     t.daemon = True
     t.start()
 
-    api.app.run(debug=False, host='0.0.0.0', port=5007)
+    api.app.run(debug=False, host='0.0.0.0', port=5007, threaded=True)
