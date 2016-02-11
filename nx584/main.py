@@ -29,6 +29,11 @@ def main():
     parser.add_argument('--baudrate', default=38400, type=int,
                         metavar='BAUD',
                         help='Serial baudrate')
+    parser.add_argument('--listen', default='127.0.0.1',
+                        metavar='ADDR',
+                        help='Listen address (defaults to 127.0.0.1)')
+    parser.add_argument('--port', default=5007, type=int,
+                        help='Listen port (defaults to 5007)')
     args = parser.parse_args()
 
     LOG = logging.getLogger()
@@ -80,4 +85,4 @@ def main():
     t.daemon = True
     t.start()
 
-    api.app.run(debug=False, host='0.0.0.0', port=5007, threaded=True)
+    api.app.run(debug=False, host=args.listen, port=args.port, threaded=True)
