@@ -135,11 +135,11 @@ def do_events(clnt, args):
         events = clnt.get_events()
         if events:
             for event in events:
-                print event
+                print(event)
 
 
 def do_version(clnt, args):
-    print clnt.get_version()
+    print(clnt.get_version())
 
 
 def main():
