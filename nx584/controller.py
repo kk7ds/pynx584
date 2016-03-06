@@ -85,19 +85,54 @@ class NXFrame(object):
         return model.MSG_TYPES[self.msgtype]
 
 
-class SocketWrapper(object):
-    def __init__(self, s):
-        self._s = s
+class ConnectionLost(Exception):
+    pass
 
-    def write(self, buf):
+
+class SocketWrapper(object):
+    def __init__(self, portspec):
+        self._portspec = portspec
+        self.connect()
+
+    def _connect(self):
+        try:
+            self._s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._s.connect(self._portspec)
+            self._s.settimeout(0.5)
+            return True
+        except (socket.error, OSError) as ex:
+            LOG.error('Failed to connect: %s' % ex)
+            self._s = None
+            return False
+
+    def connect(self):
+        while True:
+            connected = self._connect()
+            if connected:
+                LOG.info('Connected')
+                return True
+            time.sleep(5)
+
+    def _write(self, buf):
         self._s.send(buf.encode())
 
-    def readline(self):
+    def write(self, buf):
+        try:
+            self._write(buf)
+        except (socket.error, OSError):
+            if self.connect():
+                self._write(buf)
+            else:
+                LOG.error('Failed to send %r' % buf)
+
+    def _readline(self):
         try:
             while True:
                 c = self._s.recv(1).decode()
                 if c == '\n':
                     break
+                if c == '':
+                    raise ConnectionLost()
                 LOG.warning('Seeking (discarded %s %02x)' % (c, ord(c)))
         except socket.timeout:
             return ''
@@ -109,6 +144,15 @@ class SocketWrapper(object):
                 break
             line += c
         return line
+
+    def readline(self):
+        try:
+            return self._readline()
+        except (socket.error, OSError, ConnectionLost):
+            LOG.warning('Connection terminated')
+            time.sleep(10)
+            self.connect()
+            return ''
 
 
 class NXController(object):
@@ -135,10 +179,7 @@ class NXController(object):
             port, baudrate = self._portspec
             self._ser = serial.Serial(port, baudrate, timeout=0.25)
         else:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect(self._portspec)
-            s.settimeout(0.5)
-            self._ser = SocketWrapper(s)
+            self._ser = SocketWrapper(self._portspec)
             LOG.info('Connected')
 
     def _load_config(self):
@@ -546,4 +587,8 @@ class NXController(object):
                 # self._run_queue()
             name = 'process_msg_%i' % frame.msgtype
             if hasattr(self, name):
-                getattr(self, name)(frame)
+                try:
+                    getattr(self, name)(frame)
+                except Exception as e:
+                    LOG.exception('Failed to process message type %i',
+                                  frame.msgtype)
