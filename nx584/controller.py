@@ -137,12 +137,16 @@ class SocketWrapper(object):
         except socket.timeout:
             return ''
 
+        start = time.time()
         line = ''
         while not line.endswith('\r'):
             c = self._s.recv(1).decode()
             if c is None:
                 break
             line += c
+            if time.time() - start > 60:
+                LOG.error('Timeout reading a line, killing connection')
+                self._s.close()
         return line
 
     def readline(self):
