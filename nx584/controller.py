@@ -113,15 +113,12 @@ class SocketWrapper(object):
                 return True
             time.sleep(5)
 
-    def _write(self, buf):
-        self._s.send(buf.encode())
-
     def write(self, buf):
         try:
-            self._write(buf)
+            self._s.send(buf)
         except (socket.error, OSError):
             if self.connect():
-                self._write(buf)
+                self._s.send(buf)
             else:
                 LOG.error('Failed to send %r' % buf)
 
@@ -239,7 +236,8 @@ class NXController(object):
     def _send(self, data):
         data.insert(0, len(data))
         data += fletcher(data)
-        self._ser.write('\n%s\r' % make_ascii(data))
+        line = '\n%s\r' % make_ascii(data)
+        self._ser.write(line.encode())
 
     def send_ack(self):
         self._send([0x1D])
