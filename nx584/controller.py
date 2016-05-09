@@ -224,8 +224,14 @@ class NXController(object):
                     for x in self.interior_zones])
 
     def process_next(self):
-        line = parse_ascii(self._ser.readline().strip())
-        if not line:
+        data = self._ser.readline().strip()
+        if not data:
+            return None
+        LOG.debug('Parsing raw ASCII line %r' % data)
+        try:
+            line = parse_ascii(data)
+        except:
+            LOG.exception('Failed to parse raw ASCII line %r' % data)
             return None
         frame = NXFrame.decode_line(line)
         return frame
