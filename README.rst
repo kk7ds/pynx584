@@ -20,7 +20,7 @@ or::
 
  # nx584_server --connect 192.168.1.101:23
 
-Once that is running, you should be able to do something like this:
+Once that is running, you should be able to do something like this::
 
  $ nx584_client summary
  +------+-----------------+--------+--------+
