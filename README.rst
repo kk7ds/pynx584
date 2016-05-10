@@ -14,7 +14,7 @@ The server must be run on a machine with connectivity to the panel,
 which can be a local serial port, or a Serial-over-LAN device (i.e. a
 TCP socket). For example::
 
- # nx584_server --serial /dev/ttyS0
+ # nx584_server --serial /dev/ttyS0 --baud 38400
 
 or::
 
