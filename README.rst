@@ -75,3 +75,29 @@ To build the image, create the Docker container and then run it, make sure you'r
  # docker-compose up -d
 
 You should now be able to conect to the pynx584 Docker container via its exposed port (default :code:`5007`).
+
+Config
+------
+
+The config.ini should be generated once the controller reports the first
+zone name. However, here is a full config.ini if you want to pre-populate
+it with zone names:
+
+ [config]
+ # max_zone is the highest numbered zone you have populated
+ max_zone = 5
+
+ # Set to true if your unit sends DD/MM dates instead of MM/DD
+ euro_date_format = False
+ 
+ [email]
+ fromaddr = security@foo.com
+ smtphost = imap.foo.com
+ 
+ [zones]
+ # Zone names
+ 1 = Front Door
+ 2 = Garage Entry
+ 3 = Garage Side
+ 4 = Garage Back
+ 5 = Kitchen
