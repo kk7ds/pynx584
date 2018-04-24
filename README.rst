@@ -65,7 +65,7 @@ Before creating the Docker container, you need to define how you connect to the 
      ports:
        - 5007:5007
      environment:
-       # Uncomment one of these, depending on how you connect to the panel (via Serial or TCP Socket)
+       # Uncomment these as needed, depending on how you connect to the panel (via Serial or TCP Socket)
        # - SERIAL=/dev/ttyS0
        # - BAUD=38400
        # - SOCKET="192.168.1.101:23"
