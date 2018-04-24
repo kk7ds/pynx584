@@ -67,6 +67,7 @@ Before creating the Docker container, you need to define how you connect to the 
      environment:
        # Uncomment one of these, depending on how you connect to the panel (via Serial or TCP Socket)
        # - SERIAL=/dev/ttyS0
+       # - BAUD=38400
        # - SOCKET="192.168.1.101:23"
 
 To build the image, create the Docker container and then run it, make sure you're at the root of the checked out repo and run::
