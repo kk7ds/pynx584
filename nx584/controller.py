@@ -505,8 +505,15 @@ class NXController(object):
         event.reportable = bool(frame.data[2] & 0x80)
         event.zone_user_device = frame.data[3]
         event.partition_number = frame.data[4]
-        month = frame.data[5]
-        day = frame.data[6]
+        euro_format = self._config.getboolean('config', 'euro_date_format',
+                                              fallback=False)
+        if euro_format:
+            month = frame.data[6]
+            day = frame.data[5]
+        else:
+            month = frame.data[5]
+            day = frame.data[6]
+
         hour = frame.data[7]
         minute = frame.data[8]
         now = datetime.datetime.now()
@@ -514,9 +521,13 @@ class NXController(object):
             year = now.year - 1
         else:
             year = now.year
-        event.timestamp = datetime.datetime(
-            year=year, month=month, day=day,
-            hour=hour, minute=minute)
+        try:
+            event.timestamp = datetime.datetime(
+                year=year, month=month, day=day,
+                hour=hour, minute=minute)
+        except ValueError:
+            LOG.error('Log event had invalid date, or format needs to be set')
+            return
         LOG.info('Log event: %s at %s' % (event.event_string,
                                           event.timestamp))
         _event = {'type': 'log',
