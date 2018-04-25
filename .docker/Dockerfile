@@ -1,4 +1,4 @@
-FROM python:2.7-alpine
+FROM python:2.7
 
 RUN pip install --no-cache-dir pynx584
 
