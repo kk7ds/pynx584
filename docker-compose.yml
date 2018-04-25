@@ -13,5 +13,6 @@ services:
     environment:
       # Uncomment these as needed, depending on how you connect to the panel (via Serial or TCP Socket)
       # - SERIAL=/dev/ttyS0
-      # - BAUD=38400
-      # - SOCKET="192.168.1.101:23"
+      # - BAUDRATE=38400
+      # - CONNECT=192.168.1.101:23
+    network_mode: bridge

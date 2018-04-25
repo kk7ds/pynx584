@@ -1,6 +1,16 @@
 #!/bin/bash
-if [ -z "${SERIAL}" ]; then
-    /srv/pynx584/.env/bin/nx584_server --listen 0.0.0.0 --serial $SERIAL --baudrate $BAUD
-elif [ -z "${SOCKET}" ]; then
-    /srv/pynx584/.env/bin/nx584_server --listen 0.0.0.0 --connect $SOCKET
-fi;
+args=()
+
+if [ ! -z "$SERIAL" ]; then
+    args+=(--serial $SERIAL)
+fi
+
+if [ ! -z "$BAUDRATE" ]; then
+    args+=(--baudrate $BAUDRATE)
+fi
+
+if [ ! -z "$CONNECT" ]; then
+    args+=(--connect $CONNECT)
+fi
+
+nx584_server --listen $LISTEN "${args[@]}"
