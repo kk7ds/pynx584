@@ -5,8 +5,8 @@ if [ ! -z "$SERIAL" ]; then
     args+=(--serial $SERIAL)
 fi
 
-if [ ! -z "$BAUDRATE" ]; then
-    args+=(--baudrate $BAUDRATE)
+if [ ! -z "$BAUD" ]; then
+    args+=(--baud $BAUD)
 fi
 
 if [ ! -z "$CONNECT" ]; then
