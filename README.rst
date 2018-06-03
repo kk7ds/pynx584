@@ -6,7 +6,10 @@ the NX584 module (which is built into NX8E panels). You must enable it
 in the configuration and enable the operations you want to be able to
 do before this will work.
 
-To install::
+Install Locally
+***************
+
+::
 
  # pip install pynx584
 
@@ -44,6 +47,34 @@ Once that is running, you should be able to do something like this::
 
  # Disarm
  $ nx584_client disarm --master 1234
+ 
+Install via Docker Compose
+**************************
+Before creating the Docker container, you need to define how you connect to the panel (local serial port, or a Serial-over-LAN device (i.e. a TCP socket)) in the :code:`docker-compose.yml` file. Uncomment and edit the :code:`environment` section to fit your needs::
+
+ version: "3.2"
+
+ services:
+   pynx584:
+     container_name: pynx584
+     image: kk7ds/pynx584
+     build:
+       context: .docker
+       dockerfile: Dockerfile
+     restart: unless-stopped
+     ports:
+       - 5007:5007
+     environment:
+       # Uncomment these as needed, depending on how you connect to the panel (via Serial or TCP Socket)
+       # - SERIAL=/dev/ttyS0
+       # - BAUD=38400
+       # - CONNECT=192.168.1.101:23
+
+To build the image, create the Docker container and then run it, make sure you're at the root of the checked out repo and run::
+
+ # docker-compose up -d
+
+You should now be able to conect to the pynx584 Docker container via its exposed port (default :code:`5007`).
 
 Config
 ------
