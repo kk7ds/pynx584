@@ -79,8 +79,8 @@ You should now be able to conect to the pynx584 Docker container via its exposed
 Config
 ------
 
-The config.ini should be generated once the controller reports the first
-zone name. However, here is a full config.ini if you want to pre-populate
+The `config.ini` should be generated once the controller reports the first
+zone name. However, here is a full `config.ini` if you want to pre-populate
 it with zone names:
 
  [config]
