@@ -153,7 +153,7 @@ class System(object):
         ['Dynamic battery test', 'AC power on', 'Low battery memory',
          'Ground fault memory', 'Fire alarm verification being timed',
          'Smoke power reset', '50 Hz line power detected',
-         'Timing a high voltage battery change'],
+         'Timing a high voltage battery charge'],
         ['Communication since last autotest', 'Power up delay in progress',
          'Walk test mode', 'Loss of system time', 'Enroll requested',
          'Test fixture mode', 'Control shutdown mode',
