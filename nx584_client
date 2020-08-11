@@ -43,14 +43,14 @@ def do_arm(clnt, args):
         mode = 'exit'
     else:
         mode = 'auto'
-    clnt.arm(mode)
+    clnt.arm(mode, int(args.partition))
 
 
 def do_disarm(clnt, args):
     if not args.master:
         print('Master pin required')
         return
-    clnt.disarm(args.master)
+    clnt.disarm(args.master, args.partition)
 
 
 def do_summary(clnt, args):
@@ -130,6 +130,18 @@ def do_set_user_pin(clnt, args):
         print('Unable to set user information')
 
 
+def do_events(clnt, args):
+    while True:
+        events = clnt.get_events()
+        if events:
+            for event in events:
+                print(event)
+
+
+def do_version(clnt, args):
+    print(clnt.get_version())
+
+
 def main():
     args = parse_args()
     url = 'http://%s:%s' % tuple(args.host.split(':', 1))
@@ -154,7 +166,10 @@ def main():
         do_set_user_pin(clnt, args)
     elif args.command == 'users':
         do_user_summary(clnt, args)
-
+    elif args.command == 'events':
+        do_events(clnt, args)
+    elif args.command == 'version':
+        do_version(clnt, args)
 
 if __name__ == '__main__':
     main()

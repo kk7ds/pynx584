@@ -1,0 +1,18 @@
+version: "3.2"
+
+services:
+  pynx584:
+    container_name: pynx584
+    image: kk7ds/pynx584
+    build:
+      context: .docker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - 5007:5007
+    environment:
+      # Uncomment these as needed, depending on how you connect to the panel (via Serial or TCP Socket)
+      # - SERIAL=/dev/ttyS0
+      # - BAUD=38400
+      # - CONNECT=192.168.1.101:23
+    network_mode: bridge

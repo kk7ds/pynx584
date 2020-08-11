@@ -10,6 +10,7 @@ import time
 
 import stevedore.extension
 
+from nx584 import event_queue
 from nx584 import mail
 from nx584 import model
 
@@ -84,30 +85,75 @@ class NXFrame(object):
         return model.MSG_TYPES[self.msgtype]
 
 
+class ConnectionLost(Exception):
+    pass
+
+
 class SocketWrapper(object):
-    def __init__(self, s):
-        self._s = s
+    def __init__(self, portspec):
+        self._portspec = portspec
+        self.connect()
+
+    def _connect(self):
+        try:
+            self._s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self._s.connect(self._portspec)
+            self._s.settimeout(0.5)
+            return True
+        except (socket.error, OSError) as ex:
+            LOG.error('Failed to connect: %s' % ex)
+            self._s = None
+            return False
+
+    def connect(self):
+        while True:
+            connected = self._connect()
+            if connected:
+                LOG.info('Connected')
+                return True
+            time.sleep(5)
 
     def write(self, buf):
-        self._s.send(buf.encode())
+        try:
+            self._s.send(buf)
+        except (socket.error, OSError):
+            if self.connect():
+                self._s.send(buf)
+            else:
+                LOG.error('Failed to send %r' % buf)
 
-    def readline(self):
+    def _readline(self):
         try:
             while True:
                 c = self._s.recv(1).decode()
                 if c == '\n':
                     break
+                if c == '':
+                    raise ConnectionLost()
                 LOG.warning('Seeking (discarded %s %02x)' % (c, ord(c)))
         except socket.timeout:
             return ''
 
+        start = time.time()
         line = ''
         while not line.endswith('\r'):
             c = self._s.recv(1).decode()
             if c is None:
                 break
             line += c
+            if time.time() - start > 60:
+                LOG.error('Timeout reading a line, killing connection')
+                self._s.close()
         return line
+
+    def readline(self):
+        try:
+            return self._readline()
+        except (socket.error, OSError, ConnectionLost):
+            LOG.warning('Connection terminated')
+            time.sleep(10)
+            self.connect()
+            return ''
 
 
 class NXController(object):
@@ -126,6 +172,7 @@ class NXController(object):
         self.extensions = [ext_mgr[name] for name in ext_mgr.names()]
         LOG.info('Loaded extensions %s' % ext_mgr.names())
         self._load_config()
+        self.event_queue = event_queue.EventQueue(100)
         self.connect()
 
     def connect(self):
@@ -133,10 +180,7 @@ class NXController(object):
             port, baudrate = self._portspec
             self._ser = serial.Serial(port, baudrate, timeout=0.25)
         else:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.connect(self._portspec)
-            s.settimeout(0.5)
-            self._ser = SocketWrapper(s)
+            self._ser = SocketWrapper(self._portspec)
             LOG.info('Connected')
 
     def _load_config(self):
@@ -161,8 +205,11 @@ class NXController(object):
             if (not self._config.has_option('zones', str(zone.number)) and
                     zone.name != 'Unknown'):
                 self._config.set('zones', str(zone.number), zone.name)
-        with open(self._configfile, 'w') as configfile:
-            self._config.write(configfile)
+        try:
+            with open(self._configfile, 'w') as configfile:
+                self._config.write(configfile)
+        except IOError as ex:
+            LOG.error('Unable to write %s: %s' % (self._configfile, ex))
 
     @property
     def interior_zones(self):
@@ -174,8 +221,14 @@ class NXController(object):
                     for x in self.interior_zones])
 
     def process_next(self):
-        line = parse_ascii(self._ser.readline().strip())
-        if not line:
+        data = self._ser.readline().strip()
+        if not data:
+            return None
+        LOG.debug('Parsing raw ASCII line %r' % data)
+        try:
+            line = parse_ascii(data)
+        except:
+            LOG.exception('Failed to parse raw ASCII line %r' % data)
             return None
         frame = NXFrame.decode_line(line)
         return frame
@@ -183,7 +236,8 @@ class NXController(object):
     def _send(self, data):
         data.insert(0, len(data))
         data += fletcher(data)
-        self._ser.write('\n%s\r' % make_ascii(data))
+        line = '\n%s\r' % make_ascii(data)
+        self._ser.write(line.encode())
 
     def send_ack(self):
         self._send([0x1D])
@@ -194,16 +248,16 @@ class NXController(object):
     def get_zone_name(self, number):
         self._queue.append([0x23, number - 1])
 
-    def arm_stay(self, partition=1):
+    def arm_stay(self, partition):
         self._queue.append([0x3E, 0x00, partition])
 
-    def arm_exit(self, partition=1):
+    def arm_exit(self, partition):
         self._queue.append([0x3E, 0x02, partition])
 
-    def arm_auto(self, partition=1):
+    def arm_auto(self, partition):
         self._queue.append([0x3D, 0x05, 0x01, 0x01])
 
-    def disarm(self, master_pin, partition=1):
+    def disarm(self, master_pin, partition):
         self._queue.append([0x3C] +
                            make_pin_buffer(master_pin) +
                            [0x01, partition])
@@ -271,7 +325,7 @@ class NXController(object):
         # Zone Name
         number = frame.data[0] + 1
         name = ''.join([chr(x) for x in frame.data[1:]])
-        LOG.debug('Zone %i: %s' % (number, repr(name.strip())))
+        LOG.info('Zone %i: %s' % (number, repr(name.strip())))
         self._get_zone(number).name = name.strip()
         LOG.debug('Zone info from %s' % self.zones.keys())
         self._write_config()
@@ -300,6 +354,13 @@ class NXController(object):
         LOG.debug('Zone %i (%s) %s %s' % (zone.number, zone.name,
                                           zone.condition_flags,
                                           zone.type_flags))
+        event = {'type': 'zone_status',
+                 'timestamp': datetime.datetime.now().isoformat(),
+                 'zone': zone.number,
+                 'zone_state': zone.state,
+                 'zone_flags': zone.condition_flags,
+             }
+        self.event_queue.push(event)
         for ext in self.extensions:
             ext.obj.zone_status(zone)
 
@@ -345,6 +406,16 @@ class NXController(object):
         deasserted = set(orig_flags) - set(partition.condition_flags)
         asserted = set(partition.condition_flags) - set(orig_flags)
         changed = asserted | deasserted
+
+        event = {'type': 'partition',
+                 'timestamp': datetime.datetime.now().isoformat(),
+                 'partition': partition.number,
+                 'partition_flags_asserted': list(asserted),
+                 'partition_flags': partition.condition_flags,
+                 'partition_was_armed': was_armed,
+                 'partition_is_armed': partition.armed,
+             }
+        self.event_queue.push(event)
 
         if changed:
             mail.send_partition_email(self._config, partition,
@@ -418,6 +489,11 @@ class NXController(object):
         unit = frame.data[1]
         cmd = commands.get(frame.data[2], frame.data[2])
         LOG.info('Device %s%02i command %s' % (house, unit, cmd))
+        event = {'type': 'device-command',
+                 'timestamp': datetime.datetime.now().isoformat(),
+                 'device': '%s%02i' % (house, unit),
+                 'command': '%s' % cmd}
+        self.event_queue.push(event)
         for ext in self.extensions:
             ext.obj.device_command(house, unit, cmd)
 
@@ -429,8 +505,15 @@ class NXController(object):
         event.reportable = bool(frame.data[2] & 0x80)
         event.zone_user_device = frame.data[3]
         event.partition_number = frame.data[4]
-        month = frame.data[5]
-        day = frame.data[6]
+        euro_format = self._config.getboolean('config', 'euro_date_format',
+                                              fallback=False)
+        if euro_format:
+            month = frame.data[6]
+            day = frame.data[5]
+        else:
+            month = frame.data[5]
+            day = frame.data[6]
+
         hour = frame.data[7]
         minute = frame.data[8]
         now = datetime.datetime.now()
@@ -438,11 +521,20 @@ class NXController(object):
             year = now.year - 1
         else:
             year = now.year
-        event.timestamp = datetime.datetime(
-            year=year, month=month, day=day,
-            hour=hour, minute=minute)
+        try:
+            event.timestamp = datetime.datetime(
+                year=year, month=month, day=day,
+                hour=hour, minute=minute)
+        except ValueError:
+            LOG.error('Log event had invalid date, or format needs to be set')
+            return
         LOG.info('Log event: %s at %s' % (event.event_string,
                                           event.timestamp))
+        _event = {'type': 'log',
+                  'event': event.event_string,
+                  'timestamp': event.timestamp.isoformat(),
+              }
+        self.event_queue.push(_event)
         for ext in self.extensions:
             ext.obj.log_event(event)
 
@@ -477,8 +569,6 @@ class NXController(object):
     def controller_loop(self):
         self.running = True
 
-        self.send_nack()
-        self.get_system_status()
         self.set_time()
 
         try:
@@ -508,7 +598,16 @@ class NXController(object):
             if frame.ack_required:
                 self.send_ack()
             else:
-                self._run_queue()
+                pass
+                # This is sometimes too fast if we get two responses
+                # from a single command (like time set). Need to keep
+                # track of waiting for replies and re-send things when
+                # we don't hear back.
+                # self._run_queue()
             name = 'process_msg_%i' % frame.msgtype
             if hasattr(self, name):
-                getattr(self, name)(frame)
+                try:
+                    getattr(self, name)(frame)
+                except Exception as e:
+                    LOG.exception('Failed to process message type %i',
+                                  frame.msgtype)

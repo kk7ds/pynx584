@@ -122,17 +122,17 @@ def send_log_event_mail(config, event):
     try:
         alarm_emails = set(config.get('email', 'alarms').split(','))
     except (configparser.NoOptionError, configparser.NoSectionError):
-        alarm_emails = []
+        alarm_emails = set([])
 
     try:
         alarm_events = set(config.get('email', 'alarm_events').split(','))
     except (configparser.NoOptionError, configparser.NoSectionError):
-        alarm_events = ['Alarm', 'Alarm restore', 'Manual fire',]
+        alarm_events = set(['Alarm', 'Alarm restore', 'Manual fire',])
 
     try:
         event_emails = set(config.get('email', 'events').split(','))
     except (configparser.NoOptionError, configparser.NoSectionError):
-        event_emails = []
+        event_emails = set([])
 
     emails = set(event_emails)
     if event.event in alarm_events:

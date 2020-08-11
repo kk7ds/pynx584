@@ -69,13 +69,13 @@ def command():
     args = flask.request.args
     if args.get('cmd') == 'arm':
         if args.get('type') == 'stay':
-            CONTROLLER.arm_stay()
+            CONTROLLER.arm_stay(int(args.get('partition', 1)))
         elif args.get('type') == 'exit':
-            CONTROLLER.arm_exit()
+            CONTROLLER.arm_exit(int(args.get('partition', 1)))
         else:
-            CONTROLLER.arm_auto()
+            CONTROLLER.arm_auto(int(args.get('partition', 1)))
     elif args.get('cmd') == 'disarm':
-        CONTROLLER.disarm(args.get('master_pin'))
+        CONTROLLER.disarm(args.get('master_pin'), int(args.get('partition', 1)))
     return flask.Response()
 
 
@@ -147,4 +147,23 @@ def put_user(user):
         CONTROLLER.set_user_info(master_pin, user, changed)
 
     return flask.Response(json.dumps(show_user(user)),
+                          mimetype='application/json')
+
+
+@app.route('/events')
+def get_events():
+    index = int(flask.request.args.get('index', 0))
+    timeout = int(flask.request.args.get('timeout', 10))
+    events = CONTROLLER.event_queue.get(index, timeout=timeout)
+    if events:
+        index = events[-1].number
+        events = [event.payload for event in events]
+    return flask.Response(json.dumps({'events': events,
+                                      'index': index}),
+                          mimetype='application/json')
+
+
+@app.route('/version')
+def get_version():
+    return flask.Response(json.dumps({'version': '1.2'}),
                           mimetype='application/json')

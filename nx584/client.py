@@ -7,6 +7,7 @@ class Client(object):
     def __init__(self, url):
         self._url = url
         self._session = requests.Session()
+        self._last_event_index = 0
 
     def list_zones(self):
         r = self._session.get(self._url + '/zones')
@@ -22,20 +23,22 @@ class Client(object):
         except TypeError:
             return r.json()['partitions']
 
-    def arm(self, armtype='auto'):
+    def arm(self, armtype='auto', partition=1):
         if armtype not in ['stay', 'exit', 'auto']:
             raise Exception('Invalid arm type')
         r = self._session.get(
             self._url + '/command',
             params={'cmd': 'arm',
-                    'type': armtype})
+                    'type': armtype,
+                    'partition': partition})
         return r.status_code == 200
 
-    def disarm(self, master_pin):
+    def disarm(self, master_pin, partition=1):
         r = self._session.get(
             self._url + '/command',
             params={'cmd': 'disarm',
-                    'master_pin': master_pin})
+                    'master_pin': master_pin,
+                    'partition': partition})
         return r.status_code == 200
 
     def set_bypass(self, zone, bypass):
@@ -73,3 +76,23 @@ class Client(object):
                               data=json.dumps(user))
         if r.status_code == 200:
             return r.json()
+
+    def get_events(self, index=None, timeout=None):
+        if index is None:
+            index = self._last_event_index
+        if timeout is None:
+            timeout = 60
+        r = self._session.get(self._url + '/events',
+                              params={'index': index,
+                                      'timeout': timeout})
+        if r.status_code == 200:
+            data = r.json()
+            self._last_event_index = data['index']
+            return data['events']
+
+    def get_version(self):
+        r = self._session.get(self._url + '/version')
+        if r.status_code == 404:
+            return '1.0'
+        else:
+            return r.json()['version']
