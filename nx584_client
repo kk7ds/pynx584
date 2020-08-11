@@ -43,14 +43,14 @@ def do_arm(clnt, args):
         mode = 'exit'
     else:
         mode = 'auto'
-    clnt.arm(mode)
+    clnt.arm(mode, int(args.partition))
 
 
 def do_disarm(clnt, args):
     if not args.master:
         print('Master pin required')
         return
-    clnt.disarm(args.master)
+    clnt.disarm(args.master, args.partition)
 
 
 def do_summary(clnt, args):

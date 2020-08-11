@@ -69,13 +69,13 @@ def command():
     args = flask.request.args
     if args.get('cmd') == 'arm':
         if args.get('type') == 'stay':
-            CONTROLLER.arm_stay()
+            CONTROLLER.arm_stay(int(args.get('partition', 1)))
         elif args.get('type') == 'exit':
-            CONTROLLER.arm_exit()
+            CONTROLLER.arm_exit(int(args.get('partition', 1)))
         else:
-            CONTROLLER.arm_auto()
+            CONTROLLER.arm_auto(int(args.get('partition', 1)))
     elif args.get('cmd') == 'disarm':
-        CONTROLLER.disarm(args.get('master_pin'))
+        CONTROLLER.disarm(args.get('master_pin'), int(args.get('partition', 1)))
     return flask.Response()
 
 
@@ -165,5 +165,5 @@ def get_events():
 
 @app.route('/version')
 def get_version():
-    return flask.Response(json.dumps({'version': '1.1'}),
+    return flask.Response(json.dumps({'version': '1.2'}),
                           mimetype='application/json')

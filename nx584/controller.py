@@ -248,16 +248,16 @@ class NXController(object):
     def get_zone_name(self, number):
         self._queue.append([0x23, number - 1])
 
-    def arm_stay(self, partition=1):
+    def arm_stay(self, partition):
         self._queue.append([0x3E, 0x00, partition])
 
-    def arm_exit(self, partition=1):
+    def arm_exit(self, partition):
         self._queue.append([0x3E, 0x02, partition])
 
-    def arm_auto(self, partition=1):
+    def arm_auto(self, partition):
         self._queue.append([0x3D, 0x05, 0x01, 0x01])
 
-    def disarm(self, master_pin, partition=1):
+    def disarm(self, master_pin, partition):
         self._queue.append([0x3C] +
                            make_pin_buffer(master_pin) +
                            [0x01, partition])
