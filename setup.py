@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='pynx584',
-      version='0.5',
+      version='0.6',
       description='NX584/NX8E Interface Library and Server',
       author='Dan Smith',
       author_email='dsmith+nx584@danplanet.com',
