@@ -15,4 +15,6 @@ services:
       # - SERIAL=/dev/ttyS0
       # - BAUD=38400
       # - CONNECT=192.168.1.101:23
+      # Uncomment as needed, depending on the location of the config file
+      # - CONFIG=/config.ini
     network_mode: bridge
