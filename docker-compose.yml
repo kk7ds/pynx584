@@ -4,6 +4,9 @@ services:
   pynx584:
     container_name: pynx584
     image: kk7ds/pynx584
+    # Uncomment to expose tty device in container 
+    #devices:
+    #  - "/dev/ttyS0:/dev/ttyS0"    
     build:
       context: .docker
       dockerfile: Dockerfile
