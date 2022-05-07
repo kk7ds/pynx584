@@ -3,6 +3,8 @@
 import argparse
 import pprint
 import prettytable
+import time
+import sys
 
 from nx584 import client
 
@@ -142,6 +144,13 @@ def do_version(clnt, args):
     print(clnt.get_version())
 
 
+def do_alive(clnt, args):
+    info = clnt.get_info()
+    dead = time.time() - info['last_active'] > 300
+    print(dead and 'Dead' or 'Alive')
+    return dead
+
+
 def main():
     args = parse_args()
     url = 'http://%s:%s' % tuple(args.host.split(':', 1))
@@ -170,6 +179,8 @@ def main():
         do_events(clnt, args)
     elif args.command == 'version':
         do_version(clnt, args)
+    elif args.command == 'alive':
+        return do_alive(clnt, args)
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())

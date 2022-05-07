@@ -81,7 +81,7 @@ def main():
 
     api.CONTROLLER = ctrl
 
-    t = threading.Thread(target=ctrl.controller_loop)
+    t = threading.Thread(target=ctrl.controller_loop_safe)
     t.daemon = True
     t.start()
 

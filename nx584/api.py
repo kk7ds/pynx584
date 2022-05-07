@@ -165,5 +165,7 @@ def get_events():
 
 @app.route('/version')
 def get_version():
-    return flask.Response(json.dumps({'version': '1.2'}),
+    return flask.Response(json.dumps(
+        {'version': '1.2',
+         'last_active': int(CONTROLLER.last_active)}),
                           mimetype='application/json')

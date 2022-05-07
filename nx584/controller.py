@@ -92,11 +92,15 @@ class ConnectionLost(Exception):
 class SocketWrapper(object):
     def __init__(self, portspec):
         self._portspec = portspec
+        self._s = None
         self.connect()
 
     def _connect(self):
+        if self._s:
+            self._s.close()
         try:
             self._s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            LOG.debug('Connecting...')
             self._s.connect(self._portspec)
             self._s.settimeout(0.5)
             return True
@@ -106,12 +110,20 @@ class SocketWrapper(object):
             return False
 
     def connect(self):
+        sleep_time = 0
         while True:
             connected = self._connect()
             if connected:
                 LOG.info('Connected')
                 return True
-            time.sleep(5)
+            sleep_time = min(60, sleep_time + 5)
+            LOG.debug('Waiting %i sec before retry...' % sleep_time)
+            time.sleep(sleep_time)
+
+    def reconnect(self):
+        self._s.close()
+        time.sleep(10)
+        self.connect()
 
     def write(self, buf):
         try:
@@ -151,8 +163,16 @@ class SocketWrapper(object):
             return self._readline()
         except (socket.error, OSError, ConnectionLost):
             LOG.warning('Connection terminated')
-            time.sleep(10)
-            self.connect()
+            self.reconnect()
+            return ''
+        except UnicodeDecodeError as e:
+            LOG.error('Failed to decode a line; reconnecting: %s' % e)
+            try:
+                while self._s.recv(65535):
+                    pass
+            except socket.error:
+                pass
+            self.reconnect()
             return ''
 
 
@@ -163,6 +183,7 @@ class NXController(object):
         self._queue_waiting = False
         self._queue_should_wait = False
         self._queue = []
+        self.last_active = 0
         self.zones = {}
         self.partitions = {}
         self.users = {}
@@ -173,7 +194,6 @@ class NXController(object):
         LOG.info('Loaded extensions %s' % ext_mgr.names())
         self._load_config()
         self.event_queue = event_queue.EventQueue(100)
-        self.connect()
 
     def connect(self):
         if '/' in self._portspec[0]:
@@ -230,6 +250,7 @@ class NXController(object):
         except:
             LOG.exception('Failed to parse raw ASCII line %r' % data)
             return None
+        self.last_active = time.time()
         frame = NXFrame.decode_line(line)
         return frame
 
@@ -567,8 +588,6 @@ class NXController(object):
         self._send(msg)
 
     def controller_loop(self):
-        self.running = True
-
         self.set_time()
 
         try:
@@ -582,6 +601,7 @@ class NXController(object):
                 self.get_zone_name(i)
 
         quiet_count = 0
+        watchdog = time.time()
 
         while self.running:
             frame = self.process_next()
@@ -590,8 +610,15 @@ class NXController(object):
                 if quiet_count > 4:
                     self._run_queue()
                     quiet_count = 0
+                elif time.time() - watchdog > 120:
+                    # After time with no activity - generate
+                    # something to make sure we are still alive
+                    LOG.info('No activity for a while, heartbeating')
+                    self.get_zone_name(1)
+                    watchdog = time.time()
                 continue
             quiet_count = 0
+            watchdog = time.time()
             LOG.debug('Received: %i %s (data %s)' % (frame.msgtype,
                                                      frame.type_name,
                                                      frame.data))
@@ -611,3 +638,15 @@ class NXController(object):
                 except Exception as e:
                     LOG.exception('Failed to process message type %i',
                                   frame.msgtype)
+
+    def controller_loop_safe(self):
+        self.running = True
+
+        while self.running:
+            try:
+                self.connect()
+                self.controller_loop()
+            except Exception as e:
+                LOG.exception('Controller loop exited: %s' % e)
+                LOG.warning('Waiting 10s before reconnecting...')
+                time.sleep(10)
