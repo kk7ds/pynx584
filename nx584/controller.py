@@ -269,6 +269,9 @@ class NXController(object):
     def get_zone_name(self, number):
         self._queue.append([0x23, number - 1])
 
+    def get_zone_status(self, number):
+        self._queue.append([0x24, number - 1])
+
     def arm_stay(self, partition):
         self._queue.append([0x3E, 0x00, partition])
 
@@ -597,6 +600,7 @@ class NXController(object):
             self._config.set('config', 'max_zone', str(max_zone))
 
         for i in range(1, max_zone + 1):
+            self.get_zone_status(i)
             if not self._config.has_option('zones', str(i)):
                 self.get_zone_name(i)
 
