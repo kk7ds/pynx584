@@ -45,7 +45,7 @@ def do_arm(clnt, args):
         mode = 'exit'
     else:
         mode = 'auto'
-    clnt.arm(mode, int(args.partition))
+    clnt.arm(mode, int(args.partition or 1))
 
 
 def do_disarm(clnt, args):
