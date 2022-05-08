@@ -592,6 +592,7 @@ class NXController(object):
 
     def controller_loop(self):
         self.set_time()
+        self.get_system_status()
 
         try:
             max_zone = self._config.getint('config', 'max_zone')
