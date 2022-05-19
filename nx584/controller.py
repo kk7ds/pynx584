@@ -612,14 +612,14 @@ class NXController(object):
             frame = self.process_next()
             if frame is None:
                 quiet_count += 1
-                if quiet_count > 4:
+                if quiet_count > 0:
                     self._run_queue()
                     quiet_count = 0
                 elif time.time() - watchdog > 120:
                     # After time with no activity - generate
                     # something to make sure we are still alive
                     LOG.info('No activity for a while, heartbeating')
-                    self.get_zone_name(1)
+                    self.get_system_status()
                     watchdog = time.time()
                 continue
             quiet_count = 0
