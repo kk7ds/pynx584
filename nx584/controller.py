@@ -605,24 +605,20 @@ class NXController(object):
             if not self._config.has_option('zones', str(i)):
                 self.get_zone_name(i)
 
-        quiet_count = 0
         watchdog = time.time()
 
         while self.running:
             frame = self.process_next()
             if frame is None:
-                quiet_count += 1
-                if quiet_count > 0:
+                if time.time() - watchdog < 120:
                     self._run_queue()
-                    quiet_count = 0
-                elif time.time() - watchdog > 120:
+                else:
                     # After time with no activity - generate
                     # something to make sure we are still alive
                     LOG.info('No activity for a while, heartbeating')
                     self.get_system_status()
                     watchdog = time.time()
                 continue
-            quiet_count = 0
             watchdog = time.time()
             LOG.debug('Received: %i %s (data %s)' % (frame.msgtype,
                                                      frame.type_name,
