@@ -346,6 +346,13 @@ class NXController(object):
         return self.users[number]
 
     def process_msg_3(self, frame):
+        try:
+            zone_name_update = self._config.getboolean('config', 'zone_name_update')
+        except configparser.NoOptionError:
+            zone_name_update = True
+            self._config.set('config', 'zone_name_update', zone_name_update)
+        if not zone_name_update:
+            return
         # Zone Name
         number = frame.data[0] + 1
         name = ''.join([chr(x) for x in frame.data[1:]])
