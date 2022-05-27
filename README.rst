@@ -87,7 +87,7 @@ it with zone names::
  # max_zone is the highest numbered zone you have populated
  max_zone = 5
 
- # Disable zone name updates from NX8 system. If your system don't set zone
+ # Disable zone name updates from NX8 system. If your system doesn't set zone
  # names and you prefer define them through pynx584, set this value to False.
  # Defaults to True
  # zone_name_update = False
