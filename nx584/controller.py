@@ -194,6 +194,10 @@ class NXController(object):
         LOG.info('Loaded extensions %s' % ext_mgr.names())
         self._load_config()
         self.event_queue = event_queue.EventQueue(100)
+        try:
+            self.zone_name_update = self._config.getboolean('config', 'zone_name_update')
+        except configparser.NoOptionError:
+            self.zone_name_update = True
 
     def connect(self):
         if '/' in self._portspec[0]:
@@ -350,9 +354,12 @@ class NXController(object):
         number = frame.data[0] + 1
         name = ''.join([chr(x) for x in frame.data[1:]])
         LOG.info('Zone %i: %s' % (number, repr(name.strip())))
-        self._get_zone(number).name = name.strip()
-        LOG.debug('Zone info from %s' % self.zones.keys())
-        self._write_config()
+        if self.zone_name_update:
+            self._get_zone(number).name = name.strip()
+            LOG.debug('Zone info from %s' % self.zones.keys())
+            self._write_config()
+        else:
+            LOG.debug('Zone name not updating')
 
     def process_msg_4(self, frame):
         # Zone Status
