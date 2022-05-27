@@ -17,6 +17,8 @@ def main():
                         help='Path to config file')
     parser.add_argument('--debug', default=False, action='store_true',
                         help='Enable debug')
+    parser.add_argument('--debug-log', default=None,
+                        help='Debug to this log file only')
     parser.add_argument('--log', default=None,
                         metavar='FILE',
                         help='Path to log file')
@@ -41,19 +43,21 @@ def main():
     formatter = logging.Formatter(LOG_FORMAT)
     istty = os.isatty(0)
 
-    if args.debug and not istty:
+    if (args.debug or args.debug_log) and not istty:
         debug_handler = logging.handlers.RotatingFileHandler(
-            'debug.log',
+            args.debug_log or 'debug.log',
             maxBytes=1024*1024*10,
             backupCount=3)
         debug_handler.setFormatter(formatter)
         debug_handler.setLevel(logging.DEBUG)
         LOG.addHandler(debug_handler)
 
-    if istty:
+    if istty or not args.log:
         verbose_handler = logging.StreamHandler()
         verbose_handler.setFormatter(formatter)
-        verbose_handler.setLevel(args.debug and logging.DEBUG or logging.INFO)
+        verbose_handler.setLevel(
+            (args.debug and not args.debug_log) and logging.DEBUG or
+            logging.INFO)
         LOG.addHandler(verbose_handler)
 
     if args.log:
