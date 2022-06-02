@@ -198,6 +198,11 @@ class NXController(object):
             self.zone_name_update = self._config.getboolean('config', 'zone_name_update')
         except configparser.NoOptionError:
             self.zone_name_update = True
+        try:
+            self._idle_time_heartbeat_seconds = self._config.getint(
+                'config', 'idle_time_heartbeat_seconds')
+        except configparser.NoOptionError:
+            self._idle_time_heartbeat_seconds = 120
 
     def connect(self):
         if '/' in self._portspec[0]:
@@ -617,7 +622,7 @@ class NXController(object):
         while self.running:
             frame = self.process_next()
             if frame is None:
-                if time.time() - watchdog < 120:
+                if time.time() - watchdog < self._idle_time_heartbeat_seconds:
                     self._run_queue()
                 else:
                     # After time with no activity - generate
