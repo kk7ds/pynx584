@@ -90,6 +90,10 @@ class NXFrame(object):
         return model.MSG_TYPES[self.msgtype]
 
 
+class ReadTimeout(Exception):
+    pass
+
+
 class ConnectionLost(Exception):
     pass
 
@@ -98,12 +102,244 @@ class ReadFailure(Exception):
     pass
 
 
-class SocketWrapper(object):
-    def __init__(self, portspec):
+class NXProtocol(object):
+    """Abstract the act of talking to the control panel."""
+    def __init__(self, stream):
+        self.stream = stream
+
+    def read(self, n):
+        """Read bytes from the stream.
+
+        Does the right thing for sockets and serial ports.
+
+        :raises: ReadTimeout if there is no data
+        :raises: ConnectionLost if something goes wrong
+        """
+        if hasattr(self.stream, 'read'):
+            r = self.stream.read(n)
+            if r == b'':
+                raise ReadTimeout()
+            return r
+        elif hasattr(self.stream, 'recv'):
+            try:
+                r = self.stream.recv(n)
+            except socket.timeout:
+                raise ReadTimeout()
+            except (socket.error, OSError):
+                raise ConnectionLost()
+            if r == b'':
+                raise ConnectionLost()
+            return r
+        else:
+            raise ConnectionLost('What is this stream?')
+
+    def write(self, data):
+        """Write bytes to the stream.
+
+        :raises: ConnectionLost if something goes wrong
+        """
+        if hasattr(self.stream, 'write'):
+            self.stream.write(data)
+        elif hasattr(self.stream, 'send'):
+            try:
+                self.stream.send(data)
+            except (socket.error, OSError):
+                raise ConnectionLost()
+        else:
+            raise ConnectionLost('What is this stream?')
+
+    def discard_until(self, byte):
+        """Reads any unexpected data until we encounter an expected byte.
+
+        :raises: ReadTimeout (via self.read()) if we never get it.
+        """
+        while True:
+            c = self.read(1)
+            if c == byte:
+                return c
+            LOG.warning('Seeking (discarded %s %02x)' % (c, c[0]))
+
+    def read_frame(self):
+        """Read a whole frame from the stream.
+
+        :returns: An array of int values, inclusive of the length and checksum
+                  bytes
+        :raises: ConnectionLost if something goes wrong or the stream cannot
+                 be parsed
+        """
+        return []
+
+    def write_frame(self, data):
+        """Write a whole frame to the stream.
+
+        NOTE: This adds the length and checksum bytes automatically.
+
+        :param: data is an array of integers
+        """
+        pass
+
+
+class NXASCII(NXProtocol):
+    def read_frame(self):
+        self.discard_until(b'\n')
+
+        start = time.time()
+        line = ''
+        while not line.endswith('\r'):
+            try:
+                c = self.read(1).decode()
+            except ReadTimeout:
+                LOG.error('Mid-frame read timeout (got %i: %r)' % (
+                    len(line), line))
+                raise ConnectionLost()
+            line += c
+            if time.time() - start > 60:
+                LOG.error('Timeout reading a line, killing connection')
+                raise ConnectionLost()
+
+        LOG.debug('Parsing ASCII frame %r' % line.strip())
+        try:
+            return parse_ascii(line.strip())
+        except Exception:
+            LOG.exception('Failed to parse raw ASCII line %r' % line.strip())
+            raise ConnectionLost()
+
+    def write_frame(self, data):
+        data = [len(data)] + data
+        data += fletcher(data)
+        raw = '\n%s\r' % make_ascii(data)
+        self.write(raw.encode())
+
+
+class NXBinary(NXProtocol):
+    def read_frame(self):
+        self.discard_until(b'\x7e')
+
+        length = self.read(1)[0]
+        buffer = [length]
+        start = time.time()
+
+        bytestuffed = False
+
+        i = 1
+        while (i <= length + 2):
+            try:
+                c = self.read(1)[0]
+            except ReadTimeout:
+                LOG.error('Mid-frame read timeout (expected %i got %i)' % (
+                    length, i))
+                raise ConnectionLost()
+
+            if c == 0x7e:
+                raise ConnectionLost('Received start byte mid-frame!')
+
+            # Adjust any byte stuffed bytes - Skip the current byte if so,
+            # then XOR the following byte with 0x20
+            if c == 0x7d:
+                bytestuffed = True
+            else:
+                if bytestuffed:
+                    c = c ^ 0x20
+                    bytestuffed = False
+                buffer.append(c)
+                i += 1
+
+            if time.time() - start > 60:
+                LOG.error('Timeout reading a line, killing connection')
+                raise ConnectionLost()
+
+        return buffer
+
+    def write_frame(self, data):
+        data = [len(data)] + data
+        data += fletcher(data)
+        # Byte Stuff Any 0x7d, 0x7e bytes
+        bytestuff = [i for i, x in enumerate(data) if x == 0x7d]
+        for i, index in reversed(list(enumerate(bytestuff))):
+            data[index:index+1] = [0x7d, 0x5d]
+        bytestuff = [i for i, x in enumerate(data) if x == 0x7e]
+        for i, index in reversed(list(enumerate(bytestuff))):
+            data[index:index+1] = [0x7d, 0x5e]
+
+        # add the start character 0x7e
+        data.insert(0, 0x7e)
+
+        self.write(bytes(data))
+
+
+class StreamWrapper(object):
+    """Wraps a connection to the control panel.
+
+    This mostly just manages connecting, reconnecting, and some error handling,
+    transparent to the protocol (ASCII or Binary) being used.
+    """
+    def __init__(self, portspec, config):
         self._portspec = portspec
+        self._config = config
+
+        try:
+            self._use_binary_protocol = self._config.getboolean(
+                'config', 'use_binary_protocol')
+        except configparser.NoOptionError:
+            self._use_binary_protocol = False
+
         self._s = None
+        self.protocol = None
         self.connect()
 
+    def connect(self):
+        sleep_time = 0
+        while True:
+            connected = self._connect()
+            if connected:
+                if self._use_binary_protocol:
+                    self.protocol = NXBinary(self._s)
+                else:
+                    self.protocol = NXASCII(self._s)
+                LOG.info('Connected')
+                return True
+            sleep_time = min(60, sleep_time + 5)
+            LOG.debug('Waiting %i sec before retry...' % sleep_time)
+            time.sleep(sleep_time)
+
+    def reconnect(self):
+        self._s.close()
+        time.sleep(10)
+        self.connect()
+
+    def read_frame_raw(self):
+        """Read a raw frame from the stream.
+
+        Returns the raw bytes (inclusive of length and checksum) or None
+        if there is no data to read.
+        """
+        try:
+            return self.protocol.read_frame()
+        except ConnectionLost as e:
+            LOG.warning('Connection terminated: %s' % e)
+            self.reconnect()
+            return None
+        except ReadTimeout:
+            return None
+        except UnicodeDecodeError as e:
+            LOG.error('Failed to decode a line; reconnecting: %s' % e)
+            return None
+
+    def write_frame_raw(self, data):
+        """Writes a frame to the stream.
+
+        NOTE: length and checksum values are added automatically.
+        """
+        try:
+            self.protocol.write_frame(data)
+        except ConnectionLost:
+            LOG.warning('Failed to send frame; reconnecting')
+            self.reconnect()
+            # Try to re-send if we reconnect so we don't lose this event
+            self.protocol.write(data)
+
+
+class SocketWrapper(StreamWrapper):
     def _connect(self):
         if self._s:
             self._s.close()
@@ -116,73 +352,14 @@ class SocketWrapper(object):
         except (socket.error, OSError) as ex:
             LOG.error('Failed to connect: %s' % ex)
             self._s = None
+            self.protocol = None
             return False
 
-    def connect(self):
-        sleep_time = 0
-        while True:
-            connected = self._connect()
-            if connected:
-                LOG.info('Connected')
-                return True
-            sleep_time = min(60, sleep_time + 5)
-            LOG.debug('Waiting %i sec before retry...' % sleep_time)
-            time.sleep(sleep_time)
 
-    def reconnect(self):
-        self._s.close()
-        time.sleep(10)
-        self.connect()
-
-    def write(self, buf):
-        try:
-            self._s.send(buf)
-        except (socket.error, OSError):
-            if self.connect():
-                self._s.send(buf)
-            else:
-                LOG.error('Failed to send %r' % buf)
-
-    def _readline(self):
-        try:
-            while True:
-                c = self._s.recv(1).decode()
-                if c == '\n':
-                    break
-                if c == '':
-                    raise ConnectionLost()
-                LOG.warning('Seeking (discarded %s %02x)' % (c, ord(c)))
-        except socket.timeout:
-            return ''
-
-        start = time.time()
-        line = ''
-        while not line.endswith('\r'):
-            c = self._s.recv(1).decode()
-            if c is None:
-                break
-            line += c
-            if time.time() - start > 60:
-                LOG.error('Timeout reading a line, killing connection')
-                self._s.close()
-        return line
-
-    def readline(self):
-        try:
-            return self._readline()
-        except (socket.error, OSError, ConnectionLost):
-            LOG.warning('Connection terminated')
-            self.reconnect()
-            return ''
-        except UnicodeDecodeError as e:
-            LOG.error('Failed to decode a line; reconnecting: %s' % e)
-            try:
-                while self._s.recv(65535):
-                    pass
-            except socket.error:
-                pass
-            self.reconnect()
-            return ''
+class SerialWrapper(StreamWrapper):
+    def _connect(self):
+        port, baudrate = self._portspec
+        self._s = serial.Serial(port, baudrate, timeout=0.25)
 
 
 class NXController(object):
@@ -214,11 +391,10 @@ class NXController(object):
             self._idle_time_heartbeat_seconds = 120
 
     def connect(self):
-        if '/' in self._portspec[0]:
-            port, baudrate = self._portspec
-            self._ser = serial.Serial(port, baudrate, timeout=0.25)
+        if '/' in self._portspec[0] or 'COM' in self._portspec[0]:
+            self._ser = SerialWrapper(self._portspec, self._config)
         else:
-            self._ser = SocketWrapper(self._portspec)
+            self._ser = SocketWrapper(self._portspec, self._config)
             LOG.info('Connected')
 
     def _load_config(self):
@@ -259,14 +435,8 @@ class NXController(object):
                     for x in self.interior_zones])
 
     def process_next(self):
-        data = self._ser.readline().strip()
+        data = self._ser.read_frame_raw()
         if not data:
-            return None
-        LOG.debug('Parsing raw ASCII line %r' % data)
-        try:
-            line = parse_ascii(data)
-        except:
-            LOG.exception('Failed to parse raw ASCII line %r' % data)
             return None
         self.last_active = time.time()
         try:
@@ -277,10 +447,10 @@ class NXController(object):
         return frame
 
     def _send(self, data):
-        data.insert(0, len(data))
-        data += fletcher(data)
-        line = '\n%s\r' % make_ascii(data)
-        self._ser.write(line.encode())
+        try:
+            self._ser.write_frame_raw(data)
+        except Exception:
+            LOG.exception('Failed to send frame %r' % data)
 
     def send_ack(self):
         self._send([0x1D])
