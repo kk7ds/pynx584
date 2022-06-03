@@ -785,6 +785,9 @@ class NXController(object):
         LOG.debug('Sending queued %s' % msg)
         self._send(msg)
 
+    def generate_heartbeat_activity(self):
+        self.get_system_status()
+
     def controller_loop(self):
         self.set_time()
         self.get_system_status()
@@ -811,7 +814,7 @@ class NXController(object):
                     # After time with no activity - generate
                     # something to make sure we are still alive
                     LOG.info('No activity for a while, heartbeating')
-                    self.get_system_status()
+                    self.generate_heartbeat_activity()
                     watchdog = time.time()
                 continue
             watchdog = time.time()
@@ -819,6 +822,7 @@ class NXController(object):
                                                      frame.type_name,
                                                      frame.data))
             if frame.ack_required:
+                LOG.debug('Sending ACK')
                 self.send_ack()
             else:
                 pass
