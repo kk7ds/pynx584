@@ -72,6 +72,11 @@ class NXFrame(object):
     @staticmethod
     def decode_line(line_bytes):
         self = NXFrame()
+
+        s1, s2 = fletcher(line_bytes[:-2])
+        if [s1, s2] != line_bytes[-2:]:
+            raise ReadFailure('Checksum mismatch on received frame')
+
         self.length = line_bytes[0]
         msgtypefield = line_bytes[1]
         self.checksum = (line_bytes[-2] << 8) & line_bytes[-1]
@@ -86,6 +91,10 @@ class NXFrame(object):
 
 
 class ConnectionLost(Exception):
+    pass
+
+
+class ReadFailure(Exception):
     pass
 
 
@@ -260,7 +269,11 @@ class NXController(object):
             LOG.exception('Failed to parse raw ASCII line %r' % data)
             return None
         self.last_active = time.time()
-        frame = NXFrame.decode_line(line)
+        try:
+            frame = NXFrame.decode_line(data)
+        except ReadFailure as e:
+            LOG.error(str(e))
+            return None
         return frame
 
     def _send(self, data):
@@ -651,6 +664,9 @@ class NXController(object):
                 except Exception as e:
                     LOG.exception('Failed to process message type %i',
                                   frame.msgtype)
+            else:
+                LOG.debug('Unsupported frame type %i (0x%02x)' % (
+                    frame.msgtype, frame.msgtype))
 
     def controller_loop_safe(self):
         self.running = True
