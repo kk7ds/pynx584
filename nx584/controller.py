@@ -360,6 +360,7 @@ class SerialWrapper(StreamWrapper):
     def _connect(self):
         port, baudrate = self._portspec
         self._s = serial.Serial(port, baudrate, timeout=0.25)
+        return self._s.isOpen();
 
 
 class NXController(object):
