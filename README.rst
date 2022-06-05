@@ -6,6 +6,10 @@ the NX584 module (which is built into NX8E panels). You must enable it
 in the configuration and enable the operations you want to be able to
 do before this will work.
 
+This tool supports both the ASCII or Binary home automation
+protocol (and works with the binary only NX590E in addition to the
+ASCII or binary NX584/NX8E)
+
 Install Locally
 ***************
 
@@ -95,6 +99,16 @@ it with zone names::
  # Set to true if your unit sends DD/MM dates instead of MM/DD
  euro_date_format = False
  
+ # Set To true if using binary protocol
+ # Defaults to False
+ # use_binary_protocol = True
+
+ # Length of idle time before sending heartbeat keep alive
+ # (This is useful with the NX590 as it disconnects idle connections in a
+ # short period of time)
+ # Defaults to 120 seconds
+ # idle_time_heartbeat_seconds = 20
+
  [email]
  fromaddr = security@foo.com
  smtphost = imap.foo.com
