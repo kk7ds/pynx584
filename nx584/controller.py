@@ -723,7 +723,7 @@ class NXController(object):
         event.log_size = frame.data[1]
         event.event_type = frame.data[2] & 0x7F
         event.reportable = bool(frame.data[2] & 0x80)
-        event.zone_user_device = frame.data[3]
+        event.zone_user_device = frame.data[3] + 1
         event.partition_number = frame.data[4]
         euro_format = self._config.getboolean('config', 'euro_date_format',
                                               fallback=False)
