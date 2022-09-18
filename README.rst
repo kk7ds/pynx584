@@ -122,3 +122,43 @@ it with zone names::
  3 = Garage Side
  4 = Garage Back
  5 = Kitchen
+
+
+Panel Configuration
+-------------------
+
+Your NX panel must be configured properly to allow this software to
+work with it. If it was configured by a monitoring company, there is a
+very good chance that it will need quite a bit of tweaking first. Here
+is a good start to what needs to be set and how:
+
+- Protocol: ASCII
+- Speed: 38400 Baud (OR WHICHEVER YOU CHOOSE)
+- Enabled Transition Messages:
+
+ * Interface Configuration Message
+ * Zone Status Message
+ * Partition Status Message
+ * System Status Message
+ * Log Event Message
+ * Keypad Message Received (OPTIONAL)
+ * X-10 Message Received (OPTIONAL)
+
+- Enabled Commands:
+
+ * Interface Configuration Request
+ * Zone Name Request
+ * Zone Status Request
+ * Zones Snapshot Request
+ * Partition Status Request
+ * Partitions Snapshot Request
+ * Send X-10 Message (OPTIONAL)
+ * Log Event Request
+ * Send Keypad Text Message (OPTIONAL)
+ * System Status Request
+ * Program Data Request (OPTIONAL)
+ * Program Data Command (OPTIONAL)
+ * Set Clock / Calendar Command
+ * Primary Keypad Function with PIN (OPTIONAL)
+ * Secondary Keypad Function (OPTIONAL)
+ * Zone Bypass Toggle (OPTIONAL)
