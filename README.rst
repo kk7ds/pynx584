@@ -1,6 +1,8 @@
 NetworX NX584/NX8E Interface Library and Server
 ===============================================
 
+.. image:: https://github.com/kk7ds/pynx584/actions/workflows/test.yaml/badge.svg
+
 This is a tool to let you interact with your NetworX alarm panel via
 the NX584 module (which is built into NX8E panels). You must enable it
 in the configuration and enable the operations you want to be able to
