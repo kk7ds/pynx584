@@ -1,8 +1,8 @@
 import io
 import logging
 import unittest
-import mock
 import tempfile
+from unittest import mock
 
 from nx584 import controller
 

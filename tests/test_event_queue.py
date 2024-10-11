@@ -1,5 +1,5 @@
 import unittest
-import mock
+from unittest import mock
 
 from nx584 import event_queue
 
