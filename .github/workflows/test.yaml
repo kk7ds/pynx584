@@ -14,6 +14,6 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install python3-requests python3-stevedore python3-prettytable python3-serial python3-flask python3-pytest python3-mock
+          sudo apt-get install python3-requests python3-stevedore python3-prettytable python3-serial python3-flask python3-pytest
           pytest-3 tests
           
