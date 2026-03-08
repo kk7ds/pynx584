@@ -489,7 +489,7 @@ class NXController(object):
         self._queue.append([0x26, partition - 1])
 
     def set_time(self):
-        now = datetime.datetime.now()
+        now = datetime.datetime.now().astimezone()
         self._queue.append([0x3B,
                             now.year - 2000,
                             now.month,
