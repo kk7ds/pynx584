@@ -12,7 +12,7 @@ services:
       dockerfile: Dockerfile
     command:
       - --baudrate
-      - 9600
+      - "9600"
       - --config
       - /config/alarm.ini
       - --serial
