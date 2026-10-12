@@ -111,6 +111,11 @@ it with zone names::
  # Defaults to 120 seconds
  # idle_time_heartbeat_seconds = 20
 
+ # Seconds between system/partition status requests while no partition
+ # status has been received yet (the startup request can get lost)
+ # Defaults to 15 seconds
+ # status_retry_seconds = 15
+
  [email]
  fromaddr = security@foo.com
  smtphost = imap.foo.com
