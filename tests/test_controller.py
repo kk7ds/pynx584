@@ -150,6 +150,44 @@ class TestController(unittest.TestCase):
         # we expect
         self.assertEqual(expected, messages[1:])
 
+    def _sent_messages(self, prepare=None):
+        fake_config = mock.MagicMock()
+        fake_config.getboolean.return_value = False
+        rio, wio, self.ctrl._ser = get_wrapper(fake_config)
+        self.ctrl._status_retry_seconds = 0.05
+        if prepare:
+            prepare()
+
+        def stop():
+            self.ctrl.running = False
+
+        self.ctrl.running = True
+        self.ctrl._idle_time_heartbeat_seconds = 0.3
+        self.ctrl._config.set('config', 'max_zone', '1')
+        with mock.patch.object(self.ctrl, 'generate_heartbeat_activity',
+                               side_effect=stop):
+            self.ctrl.controller_loop()
+
+        return [m.strip() for m in wio.getvalue().split(b'\r')]
+
+    def test_startup_retries_system_status(self):
+        messages = self._sent_messages()
+        self.assertGreater(messages.count(b'0128292A'), 1)
+
+    def test_startup_no_retry_with_partition(self):
+        def prepare():
+            self.ctrl._get_partition(1)
+
+        messages = self._sent_messages(prepare)
+        self.assertEqual(1, messages.count(b'0128292A'))
+
+    def test_startup_retries_partition_status(self):
+        def prepare():
+            self.ctrl.system.status_flags = ['Valid partition 1']
+
+        messages = self._sent_messages(prepare)
+        self.assertTrue(any(m.startswith(b'022600') for m in messages))
+
     def _test_receive(self, binary):
         fake_config = mock.MagicMock()
         fake_config.getboolean.return_value = binary
