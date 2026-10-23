@@ -4,20 +4,23 @@ import time
 
 
 class Client(object):
-    def __init__(self, url):
+    def __init__(self, url, timeout=None):
         self._url = url
+        self._timeout = timeout
         self._session = requests.Session()
         self._last_event_index = 0
 
     def list_zones(self):
-        r = self._session.get(self._url + '/zones')
+        r = self._session.get(self._url + '/zones',
+                              timeout=self._timeout)
         try:
             return r.json['zones']
         except TypeError:
             return r.json()['zones']
 
     def list_partitions(self):
-        r = self._session.get(self._url + '/partitions')
+        r = self._session.get(self._url + '/partitions',
+                              timeout=self._timeout)
         try:
             return r.json['partitions']
         except TypeError:
@@ -30,7 +33,8 @@ class Client(object):
             self._url + '/command',
             params={'cmd': 'arm',
                     'type': armtype,
-                    'partition': partition})
+                    'partition': partition},
+            timeout=self._timeout)
         return r.status_code == 200
 
     def disarm(self, master_pin, partition=1):
@@ -38,14 +42,16 @@ class Client(object):
             self._url + '/command',
             params={'cmd': 'disarm',
                     'master_pin': master_pin,
-                    'partition': partition})
+                    'partition': partition},
+            timeout=self._timeout)
         return r.status_code == 200
 
     def set_bypass(self, zone, bypass):
         data = {'bypassed': bypass}
         r = self._session.put(self._url + '/zones/%i' % zone,
                               data=json.dumps(data),
-                              headers={'Content-Type': 'application/json'})
+                              headers={'Content-Type': 'application/json'},
+                              timeout=self._timeout)
         return r.status_code == 200
 
     def get_user(self, master_pin, user_number):
@@ -53,7 +59,8 @@ class Client(object):
         while True:
             r = self._session.get(self._url + '/users/%i' % user_number,
                                   params=params,
-                                  headers={'Master-Pin': master_pin})
+                                  headers={'Master-Pin': master_pin},
+                                  timeout=self._timeout)
             if r.status_code == 202:
                 params['retry'] = 'yes'
                 time.sleep(1)
@@ -73,7 +80,8 @@ class Client(object):
         r = self._session.put(self._url + '/users/%i' % user['number'],
                               headers={'Master-Pin': master_pin,
                                        'Content-Type': 'application/json'},
-                              data=json.dumps(user))
+                              data=json.dumps(user),
+                              timeout=self._timeout)
         if r.status_code == 200:
             return r.json()
 
@@ -82,23 +90,30 @@ class Client(object):
             index = self._last_event_index
         if timeout is None:
             timeout = 60
+        request_timeout = self._timeout
+        if request_timeout is not None:
+            # Leave room for the server-side long poll
+            request_timeout += timeout
         r = self._session.get(self._url + '/events',
                               params={'index': index,
-                                      'timeout': timeout})
+                                      'timeout': timeout},
+                              timeout=request_timeout)
         if r.status_code == 200:
             data = r.json()
             self._last_event_index = data['index']
             return data['events']
 
     def get_version(self):
-        r = self._session.get(self._url + '/version')
+        r = self._session.get(self._url + '/version',
+                              timeout=self._timeout)
         if r.status_code == 404:
             return '1.0'
         else:
             return r.json()['version']
 
     def get_info(self):
-        r = self._session.get(self._url + '/version')
+        r = self._session.get(self._url + '/version',
+                              timeout=self._timeout)
         if r.status_code == 404:
             return '1.0'
         else:
