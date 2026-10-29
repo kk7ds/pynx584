@@ -28,22 +28,23 @@ class TestClientTimeout(unittest.TestCase):
         clnt.get_user('1234', 1)
         clnt.put_user('1234', {'number': 1})
         clnt.get_version()
+        clnt.get_system()
         clnt.get_info()
 
     def _timeouts(self, session):
         calls = session.get.call_args_list + session.put.call_args_list
-        self.assertEqual(10, len(calls))
+        self.assertEqual(11, len(calls))
         return [c.kwargs.get('timeout', 'missing') for c in calls]
 
     def test_no_timeout_by_default(self):
         clnt, session = self._client()
         self._call_all(clnt)
-        self.assertEqual([None] * 10, self._timeouts(session))
+        self.assertEqual([None] * 11, self._timeouts(session))
 
     def test_timeout(self):
         clnt, session = self._client(timeout=10)
         self._call_all(clnt)
-        self.assertEqual([10] * 10, self._timeouts(session))
+        self.assertEqual([10] * 11, self._timeouts(session))
 
     def test_get_events_no_timeout_by_default(self):
         clnt, session = self._client()

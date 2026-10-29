@@ -111,6 +111,13 @@ class Client(object):
         else:
             return r.json()['version']
 
+    def get_system(self):
+        r = self._session.get(self._url + '/system',
+                              timeout=self._timeout)
+        if r.status_code == 200:
+            return r.json()
+        return None
+
     def get_info(self):
         r = self._session.get(self._url + '/version',
                               timeout=self._timeout)

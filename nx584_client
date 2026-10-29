@@ -144,6 +144,10 @@ def do_version(clnt, args):
     print(clnt.get_version())
 
 
+def do_system(clnt, args):
+    pprint.pprint(clnt.get_system(), width=60)
+
+
 def do_alive(clnt, args):
     info = clnt.get_info()
     dead = time.time() - info['last_active'] > 300
@@ -179,6 +183,8 @@ def main():
         do_events(clnt, args)
     elif args.command == 'version':
         do_version(clnt, args)
+    elif args.command == 'system':
+        do_system(clnt, args)
     elif args.command == 'alive':
         return do_alive(clnt, args)
 
