@@ -2,7 +2,9 @@ FROM python:3.14
 
 ENV LISTEN=0.0.0.0
 
-RUN pip install --no-cache-dir pynx584
+COPY setup.py nx584_server nx584_client /src/
+COPY nx584 /src/nx584
+RUN pip install --no-cache-dir /src
 
 EXPOSE 5007
 
