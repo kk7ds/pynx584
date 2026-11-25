@@ -165,6 +165,13 @@ def put_user(user):
 @app.route('/events')
 def get_events():
     index = int(flask.request.args.get('index', 0))
+    # An index beyond our newest event can only come from a client that
+    # was talking to a previous run of this server (the queue starts over
+    # at zero on restart). Without this, such a client waits until we
+    # have produced that many events again, which can take months.
+    # Clamping lets it resume at the next event.
+    if index > CONTROLLER.event_queue.current:
+        index = CONTROLLER.event_queue.current
     timeout = int(flask.request.args.get('timeout', 10))
     events = CONTROLLER.event_queue.get(index, timeout=timeout)
     if events:
